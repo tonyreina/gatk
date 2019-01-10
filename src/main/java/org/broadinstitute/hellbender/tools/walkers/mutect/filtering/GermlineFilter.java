@@ -15,11 +15,11 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 //TODO: make it probabilistic filter
-public class GermlineFilter extends HardFilter {
+public class GermlineFilter extends Mutect2VariantFilter {
     private static final double MIN_ALLELE_FRACTION_FOR_GERMLINE_HOM_ALT = 0.9;
 
     @Override
-    public boolean isArtifact(final VariantContext vc, final Mutect2FilteringInfo filteringInfo) {
+    public double calculateArtifactProbability(final VariantContext vc, final Mutect2FilteringInfo filteringInfo) {
         final Map<String, OverlapDetector<MinorAlleleFractionRecord>> tumorSegments = filteringInfo.getTumorSegments();
         final double[] tumorLog10OddsIfSomatic = GATKProtectedVariantContextUtils.getAttributeAsDoubleArray(vc, GATKVCFConstants.TUMOR_LOD_KEY);
         final Optional<double[]> normalLods = vc.hasAttribute(GATKVCFConstants.NORMAL_LOD_KEY) ?
@@ -74,15 +74,16 @@ public class GermlineFilter extends HardFilter {
         final double[] log10GermlinePosteriors = GermlineProbabilityCalculator.calculateGermlineProbabilities(
                 populationAlleleFrequencies, log10OddsOfGermlineHetVsSomatic, log10OddsOfGermlineHomAltVsSomatic, normalLods, filteringInfo.getMTFAC().log10PriorProbOfSomaticEvent);
 
-        // TODO: attribute added!
-        //filterResult.addAttribute(GATKVCFConstants.GERMLINE_QUAL_VCF_ATTRIBUTE, Arrays.stream(log10GermlinePosteriors).mapToInt(p -> (int) QualityUtils.phredScaleLog10ErrorRate(p)).toArray());
-
         final int indexOfMaxTumorLod = MathUtils.maxElementIndex(tumorLog10OddsIfSomatic);
-        return log10GermlinePosteriors[indexOfMaxTumorLod] > Math.log10(filteringInfo.getMTFAC().maxGermlinePosterior);
+        return Math.pow(10.0, log10GermlinePosteriors[indexOfMaxTumorLod]);
     }
 
     public String filterName() {
         return GATKVCFConstants.GERMLINE_RISK_FILTER_NAME;
+    }
+
+    public Optional<String> phredScaledPosteriorAnnotationName() {
+        return Optional.of(GATKVCFConstants.GERMLINE_QUAL_VCF_ATTRIBUTE);
     }
 
     protected List<String> requiredAnnotations() {

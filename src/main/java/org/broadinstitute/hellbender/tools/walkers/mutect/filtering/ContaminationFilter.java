@@ -11,12 +11,11 @@ import org.broadinstitute.hellbender.utils.variant.GATKVCFConstants;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 
-//TODO: make it probabilistic filter
-// TODO: contaminationBySample is in M2FilteringEngine
-public class ContaminationFilter extends HardFilter {
+public class ContaminationFilter extends Mutect2VariantFilter {
     @Override
-    public boolean isArtifact(final VariantContext vc, final Mutect2FilteringInfo filteringInfo) {
+    public double calculateArtifactProbability(final VariantContext vc, final Mutect2FilteringInfo filteringInfo) {
         final double somaticPriorProb = Math.pow(10, filteringInfo.getMTFAC().log10PriorProbOfSomaticEvent);
         final List<ImmutablePair<Integer, Double>> depthsAndPosteriors = new ArrayList<>();
 
@@ -48,16 +47,15 @@ public class ContaminationFilter extends HardFilter {
             depthsAndPosteriors.add(ImmutablePair.of(altCount, posteriorProbOfContamination));
         }
 
-        double posteriorProbOfContamination = weightedMedianPosteriorProbability(depthsAndPosteriors);
-
-        // TODO: annotation added!!!!
-        //filterResult.addAttribute(GATKVCFConstants.CONTAMINATION_QUAL_ATTRIBUTE, QualityUtils.errorProbToQual(posteriorProbOfContamination));
-
-        return posteriorProbOfContamination > filteringInfo.getMTFAC().maxContaminationProbability;
+        return weightedMedianPosteriorProbability(depthsAndPosteriors);
     }
 
     public String filterName() {
         return GATKVCFConstants.CONTAMINATION_FILTER_NAME;
+    }
+
+    public Optional<String> phredScaledPosteriorAnnotationName() {
+        return Optional.of(GATKVCFConstants.CONTAMINATION_QUAL_ATTRIBUTE);
     }
 
     protected List<String> requiredAnnotations() { return Collections.singletonList(GATKVCFConstants.POPULATION_AF_VCF_ATTRIBUTE); }

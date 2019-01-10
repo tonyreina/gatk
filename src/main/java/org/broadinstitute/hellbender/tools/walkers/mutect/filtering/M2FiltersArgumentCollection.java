@@ -13,7 +13,6 @@ public class M2FiltersArgumentCollection {
     public static final String TUMOR_LOD_LONG_NAME = "tumor-lod";
     public static final String NORMAL_ARTIFACT_LOD_LONG_NAME = "normal-artifact-lod";
     public static final String NORMAL_P_VALUE_THRESHOLD_LONG_NAME = "normal-p-value-threshold";
-    public static final String MAX_GERMLINE_POSTERIOR_LONG_NAME = "max-germline-posterior";
     public static final String MAX_ALT_ALLELE_COUNT_LONG_NAME = "max-alt-allele-count";
     public static final String MIN_BASES_TO_SUSPECT_PCR_SLIPPAGE_LONG_NAME = "min-pcr-slippage-size";
     public static final String PCR_SLIPPAGE_RATE_LONG_NAME = "pcr-slippage-rate";
@@ -27,16 +26,12 @@ public class M2FiltersArgumentCollection {
     public static final String MIN_STRAND_ARTIFACT_ALLELE_FRACTION_LONG_NAME = "min-strand-artifact-allele-fraction";
     public static final String CONTAMINATION_TABLE_LONG_NAME = "contamination-table";
     public static final String CONTAMINATION_ESTIMATE_LONG_NAME = "contamination-estimate";
-    public static final String MAX_CONTAMINATION_PROBABILITY_LONG_NAME = "max-contamination-probability";
     public static final String UNIQUE_ALT_READ_COUNT_LONG_NAME = "unique-alt-read-count";
     public static final String TUMOR_SEGMENTATION_LONG_NAME = "tumor-segmentation";
-
     public static final String THRESHOLD_STRATEGY_LONG_NAME = "threshold-strategy";
     public static final String FALSE_DISCOVERY_RATE_LONG_NAME = "false-discovery-rate";
     public static final String POSTERIOR_THRESHOLD_LONG_NAME = "posterior-threshold";
     public static final String F_SCORE_BETA_LONG_NAME = "f-score-beta";
-
-
     public static final String MAX_DISTANCE_TO_FILTERED_CALL_ON_SAME_HAPLOTYPE_LONG_NAME = "distance-on-haplotype";
     public static final String N_RATIO_LONG_NAME = "n-ratio";
     public static final String STRICT_STRAND_BIAS_LONG_NAME = "strict-strand-bias";
@@ -82,9 +77,6 @@ public class M2FiltersArgumentCollection {
     @Argument(fullName = NORMAL_P_VALUE_THRESHOLD_LONG_NAME, optional = true, doc = "P value threshold for normal artifact filter")
     public static final double normalPileupPValueThreshold = 0.001;
 
-    @Argument(fullName = MAX_GERMLINE_POSTERIOR_LONG_NAME, optional = true, doc = "Maximum posterior probability that an allele is a germline variant")
-    public double maxGermlinePosterior = 0.1;
-
     @Argument(fullName = MAX_ALT_ALLELE_COUNT_LONG_NAME, optional = true, doc = "filter variants with too many alt alleles")
     public int numAltAllelesThreshold = 1;
 
@@ -123,9 +115,6 @@ public class M2FiltersArgumentCollection {
 
     @Argument(fullName = CONTAMINATION_ESTIMATE_LONG_NAME, optional = true, doc = "Estimate of contamination.")
     public double contaminationEstimate = 0;
-
-    @Argument(fullName = MAX_CONTAMINATION_PROBABILITY_LONG_NAME, optional = true, doc = "Filter variants with posterior probability to be due to contamination greater than this.")
-    public double maxContaminationProbability = 0.1;
 
     @Argument(fullName = UNIQUE_ALT_READ_COUNT_LONG_NAME, shortName = "unique", optional = true, doc = "Filter a variant if a site contains fewer than this many unique (i.e. deduplicated) reads supporting the alternate allele")
     public int uniqueAltReadCount = 0;
