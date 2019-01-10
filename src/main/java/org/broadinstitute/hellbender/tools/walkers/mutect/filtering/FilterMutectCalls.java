@@ -13,6 +13,7 @@ import org.broadinstitute.barclay.argparser.CommandLineProgramProperties;
 import org.broadinstitute.barclay.help.DocumentedFeature;
 import org.broadinstitute.hellbender.cmdline.StandardArgumentDefinitions;
 import org.broadinstitute.hellbender.engine.*;
+import org.broadinstitute.hellbender.exceptions.GATKException;
 import org.broadinstitute.hellbender.utils.MathUtils;
 import org.broadinstitute.hellbender.utils.QualityUtils;
 import picard.cmdline.programgroups.VariantFilteringProgramGroup;
@@ -71,7 +72,7 @@ import java.util.stream.Collectors;
         programGroup = VariantFilteringProgramGroup.class
 )
 @DocumentedFeature
-public final class FilterMutectCalls extends TwoPassVariantWalker {
+public final class FilterMutectCalls extends MultiplePassVariantWalker {
 
     private static final double EPSILON = 1.0e-10;
 
@@ -89,8 +90,6 @@ public final class FilterMutectCalls extends TwoPassVariantWalker {
 
     private List<Mutect2VariantFilter> filters;
 
-    private final List<Double> firstPassArtifactProbabilities = new ArrayList<>();
-
     private Mutect2FilteringInfo filteringInfo;
 
     private Map<String, MutableDouble> expectedFalsePositives = new HashMap<>();
@@ -98,6 +97,9 @@ public final class FilterMutectCalls extends TwoPassVariantWalker {
     private MutableInt passingVariants = new MutableInt(0);
 
     private Map<String, String> filterPhredPosteriorAnnotations = new HashMap<>();
+
+    @Override
+    protected int numberOfPasses() { return 3; }
 
     @Override
     public void onTraversalStart() {
@@ -151,7 +153,42 @@ public final class FilterMutectCalls extends TwoPassVariantWalker {
     }
 
     @Override
-    public void firstPassApply(final VariantContext vc, final ReadsContext readsContext, final ReferenceContext refContext, final FeatureContext fc) {
+    protected void nthPassApply(final VariantContext variant,
+                                final ReadsContext readsContext,
+                                final ReferenceContext referenceContext,
+                                final FeatureContext featureContext,
+                                final int n) {
+        if (n == 0) {
+            filters.forEach(f -> f.accumulateDataForLearning(variant, filteringInfo));
+        } else if (n == 1) {
+            secondPassOptimizeThresholdApply(variant, readsContext, referenceContext, featureContext);
+        } else if (n == 2) {
+            thirdPassMakeFilteringCallsApply(variant, readsContext, referenceContext, featureContext);
+        } else {
+            throw new GATKException.ShouldNeverReachHereException("This two-pass walker should never reach (zero-indexed) pass " + n);
+        }
+    }
+
+    @Override
+    protected void afterNthPass(final int n) {
+        if (n == 0) {
+            filters.forEach(f -> f.learnParameters());
+        } else if (n == 1) {
+            filteringInfo.adjustThreshold();
+        } else if (n == 2) {
+            final int totalCalls = passingVariants.getValue();
+            final List<FilterStats> filterStats = expectedFalsePositives.entrySet().stream()
+                    .map(entry -> new FilterStats(entry.getKey(), filteringInfo.getArtifactProbabilityThreshold(),
+                            entry.getValue().getValue(), totalCalls, entry.getValue().getValue() / totalCalls))
+                    .collect(Collectors.toList());
+
+            FilterStats.writeM2FilterSummary(filterStats, MTFAC.mutect2FilteringStatsTable);
+        } else {
+            throw new GATKException.ShouldNeverReachHereException("This three-pass walker should never reach (zero-indexed) pass " + n);
+        }
+    }
+
+    private void secondPassOptimizeThresholdApply(final VariantContext vc, final ReadsContext readsContext, final ReferenceContext refContext, final FeatureContext fc) {
 
         final double[] artifactProbabilities = filters.stream().mapToDouble(filter -> filter.artifactProbability(vc, filteringInfo)).toArray();
         final double artifactProbability = MathUtils.arrayMax(artifactProbabilities);
@@ -160,16 +197,10 @@ public final class FilterMutectCalls extends TwoPassVariantWalker {
             filteringInfo.recordFilteredHaplotypes(vc);
         }
 
-        firstPassArtifactProbabilities.add(artifactProbability);
+        filteringInfo.addFirstPassArtifactProbability(artifactProbability);
     }
 
-    @Override
-    protected void afterFirstPass() {
-        filteringInfo.adjustThreshold(firstPassArtifactProbabilities);
-    }
-
-    @Override
-    public void secondPassApply(final VariantContext vc, final ReadsContext readsContext, final ReferenceContext refContext, final FeatureContext fc) {
+    public void thirdPassMakeFilteringCallsApply(final VariantContext vc, final ReadsContext readsContext, final ReferenceContext refContext, final FeatureContext fc) {
         final VariantContextBuilder vcb = new VariantContextBuilder(vc);
         vcb.filters(new HashSet<>());
 
@@ -204,19 +235,6 @@ public final class FilterMutectCalls extends TwoPassVariantWalker {
         vcfWriter.add(vcb.make());
     }
 
-    @Override
-    public Object onTraversalSuccess() {
-        final int totalCalls = passingVariants.getValue();
-        final List<FilterStats> filterStats = expectedFalsePositives.entrySet().stream()
-                .map(entry -> new FilterStats(entry.getKey(), filteringInfo.getArtifactProbabilityThreshold(),
-                        entry.getValue().getValue(), totalCalls, entry.getValue().getValue() / totalCalls))
-                .collect(Collectors.toList());
-
-        FilterStats.writeM2FilterSummary(filterStats, MTFAC.mutect2FilteringStatsTable);
-        return "SUCCESS";
-    }
-
-    //TODO write out all filter stats
     @Override
     public void closeTool() {
         if ( vcfWriter != null ) {

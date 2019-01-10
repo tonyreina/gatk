@@ -23,6 +23,10 @@ public abstract class Mutect2VariantFilter {
 
     protected abstract double calculateArtifactProbability(final VariantContext vc, final Mutect2FilteringInfo filteringInfo);
 
+    // by default do nothing, but we may override to allow some filters to learn their parameters in the first pass of {@link FilterMutectCalls}
+    protected void accumulateDataForLearning(final VariantContext vc, final Mutect2FilteringInfo filteringInfo) { }
+    protected void learnParameters() { }
+
     public abstract String filterName();
 
     public abstract Optional<String> phredScaledPosteriorAnnotationName();

@@ -168,45 +168,23 @@ We now have the model evidence for allele subset $\mathbb{A}$.  This lets us cho
 
 The strand artifact filter detects sequencing artifacts in which the evidence for the alt allele consists entirely of forward strand reads alone or reverse strand reads alone. We must detect this while taking into account the fact that at some loci, such as near the end of an exome target, \emph{all} reads are biased towards one direction, and therefore a bias towards a particular strand among alt reads is no cause for alarm.
 
-Let $z \in \{ z_+, z_-, z_o \}$ be a latent random variable with 1-hot encoding that represents the artifact state of a suspected variant. $z_+ = 1$ when the candidate variant is a forward strand artifact, $z_- = 1$ when it's a reverse artifact, and $z_o = 1$ when there's no artifact. At each locus, the conditional distribution over the number of forward alt reads $x^+$ is a binomial random variable
+Let $z \in \{ z_+, z_-, z_o \}$ be a latent random variable with 1-hot encoding that represents the artifact state of a suspected variant i.e. $z_+ = 1$ for a forward strand artifact, $z_- = 1$ for a reverse artifact, and $z_o = 1$ otherwise. At each locus, let $a_\pm$ be the number of forward (+) or reverse (-) strand alt reads and let $n_\pm$ be the total depth for each strand.  By modeling $a+_\pm$ relative to $n_\pm$ we account for inherent strand bias due to, for example, reads falling at the end of an exome target and do not confuse it for an artifact.  Let $f$ be the allele fraction of true variation in case $z_o = 1$.  Let $\epsilon$ be the strand bias error rate and let $\theta$ be the non-strand-biased error rate.  We will ignore the case in which significant strand bias coincides with real variation, first because this is exceedingly rare and ignoring it has a negligible effect on the parameters of our model, and secondly because such variants should be considered true positives.
 
-\begin{equation}
-P(x^+ | f, \epsilon, z) = \text{Bin} (x^+ | n^+, f + \epsilon(1-f))^{z_+} \text{Bin} (x^+ | n^+, f)^{1 - z_+}
-\end{equation}
 
-where $n^+$ is the number of \emph{total} forward reads, $f$ is the allele fraction, and $\epsilon$ is the artifactual error rate, which is the probability that we mistakenly read a ref allele as alt due to strand artifact. We put a flat prior on $f$ and a beta prior on $\epsilon$. The conditional distribution of $x^-$ is defined analogously.
-
-In order to decide whether to filter a variant, we compute the posterior probabilities of $z$ given the observed alt read counts $X = \{ x^+, x^- \}$.  We obtain the likelihood $P(X | z)$ by marginalizing the latent variables $f$ and $\epsilon$ out of the joint distribution $P(X, f, \epsilon | z)$, and we do this for each of the three possible values of $z$ separately. First consider the case $z_+ = 1$, which we denote by the shorthand $z_+$ below.
-
+The conditional distributions of our model are binomial
 \begin{align}
-P(X | z_+ )  &= \iint  P(X, f, \epsilon | z_+) \,df\,d\epsilon \nonumber \\
-		  &= \iint  P(f) P(\epsilon) P(x^+ | z_+, f, \epsilon) P(x^- | z_+, f, \epsilon) \,df\,d\epsilon \nonumber \\
-		  &= \iint \mathrm{Beta}(\epsilon|\alpha, \beta) \mathrm{Bin}(x^+ | n^+, f + \epsilon(1-f)) \mathrm{Bin}(x^- | n^-, f) \,df\,d\epsilon
+a_+ | \epsilon, \theta, f, z_+ = 1 &\sim \text{Bin} (a_+ | n_+, \epsilon) \\
+a_+ | \epsilon, \theta, f, z_- = 1 &\sim \text{Bin} (a_+ | n_+, \theta) \\
+a_+ | \epsilon, \theta, f, z_o = 1 &\sim \text{Bin} (a_+ | n_+, f),
+\end{align}
+and similarly for $a_-$.  Putting beta priors on $\epsilon$, $\theta$, and $f$, with parameters $(\alpha_\epsilon, \beta_\epsilon)$, $(\alpha_\theta, \beta_\theta)$, and $(\alpha_f, \beta_f)$ and marginalizing latent parameters we obtain likelihoods
+\begin{align}
+P(a_+, a_- | z_\pm = 1) =& \text{BetaBinom}(a_\pm | n_\pm, \alpha_\epsilon, \beta_\epsilon) \text{BetaBinom}(a_\mp | n_\mp, \alpha_\theta, \beta_\theta) \\
+P(a_+, a_- | z_o = 1) =& \int_0^1 \text{Beta}(f | \alpha_f, \beta_f) \text{Binom}(a_+ | n_+, f) \text{Binom}(a_- | n_-, f) \\ 
+                                  =& \frac{ \binom{n_+}{a_+} \binom{n_-}{a_-}}{\binom{n_+ + n_-}{a_+ + a_-}} \text{BetaBinom}(a_+ + a_- | n_+ + n_-, \alpha_f, \beta_f)
 \end{align}
 
-where $\alpha$ and $\beta$ are fixed hyperparameters to the beta prior on $\epsilon$. By Bayes Rule the posterior probability of strand bias for forward reads is therefore
-
-\begin{align}
-P(z_+ | X) & \propto P(z_+) P(X | z_+) = \pi_+ P(X | z_+) 
-\end{align}
-
-where $\pi_+ = P(z_+)$ is a fixed prior probability of strand artifact. The posterior probability of reverse strand artifact $P(z_- | X)$ may be derived analogously. 
-
-The derivation of $P(z_o|X)$ is similar except that the integral becomes much simpler because $P(X|z_o)$ does not depend on the artifactual error rate $\epsilon$.
-
-\begin{align}
-P(X | z_o)  &= \iint P(\epsilon) P(x^+ | z_o, f, \epsilon) P(x^- | z_o, f, \epsilon) \,df\,d\epsilon \nonumber \\
-	 	 &= \int  P(x^+ | z_o, f) P(x^- | z_o, f) \,df \int  P(\epsilon) d\epsilon \nonumber \\
-		 &= \int  \mathrm{Bin}(x^+ | n^+, f) \mathrm{Bin}(x^- | n^-, f) \,df
-\end{align}
-
-And the posterior probability is
-
-\begin{equation}
-P(z_o | X) \propto P(z_o) P(X | z_o) =  \pi_o P(X | z_o) 
-\end{equation}
-
-where $\pi_o = P(z_o = 1)$ is the fixed prior probability of no artifact. We normalize the posteriors and filter the variant if the posterior probability of $z_+ = 1$ or $z_- = 1$ exceeds the threshold.
+Finally, we let $\pi/2$ be the prior probability of a forward or reverse strand artifact.  From the above equations it is straightforward to calculate the posterior probability of $z$ and to learn $\pi$ iteratively via the EM algorithm.  It is somewhat more complicated to learn $(\alpha_\epsilon, \beta_\epsilon)$ and $(\alpha_\theta, \beta_\theta)$, so we treat these as fixed hyperparameters.  We use a flat prior $\alpha_f = \beta_f = 1$ for the true allele fraction.
 
 \section{Germline Filter}\label{germline-filter}
 Suppose we have detected an allele such that its (somatic) likelihood in the tumor is $\ell_t$ and its (diploid) likelihood in the normal is $\ell_n$\footnote{This is the total likelihood for het and hom alt in the normal.}.  By convention, both of these are relative to a likelihood of $1$ for the allele \textit{not} to be found.  If we have no matched normal, $\ell_n = 1$.  Suppose we also have the population allele frequency $f$ of this allele.  Then the prior probabilities for the normal to be heterozygous and homozygous alt for the allele are $2f(1-f)$ and $f^2$ and the prior probability for the normal genotype not to contain the allele is $(1-f)^2$.  Finally, suppose that the prior for this allele to arise as a somatic variant is $\pi$.

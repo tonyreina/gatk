@@ -22,8 +22,6 @@ public class M2FiltersArgumentCollection {
     public static final String MAX_MEDIAN_FRAGMENT_LENGTH_DIFFERENCE_LONG_NAME = "max-median-fragment-length-difference";
     public static final String MIN_MEDIAN_READ_POSITION_LONG_NAME = "min-median-read-position";
     public static final String MAX_EVENTS_IN_REGION_LONG_NAME = "max-events-in-region";
-    public static final String MAX_STRAND_ARTIFACT_PROBABILITY_LONG_NAME = "max-strand-artifact-probability";
-    public static final String MIN_STRAND_ARTIFACT_ALLELE_FRACTION_LONG_NAME = "min-strand-artifact-allele-fraction";
     public static final String CONTAMINATION_TABLE_LONG_NAME = "contamination-table";
     public static final String CONTAMINATION_ESTIMATE_LONG_NAME = "contamination-estimate";
     public static final String UNIQUE_ALT_READ_COUNT_LONG_NAME = "unique-alt-read-count";
@@ -103,12 +101,6 @@ public class M2FiltersArgumentCollection {
 
     @Argument(fullName = MAX_EVENTS_IN_REGION_LONG_NAME, optional = true, doc = "Variants coming from an assembly region with more than this many events are filtered")
     public int maxEventsInRegion = 2;
-
-    @Argument(fullName = MAX_STRAND_ARTIFACT_PROBABILITY_LONG_NAME, shortName = "strand-prob", optional = true, doc = "Filter a variant if the probability of strand artifact exceeds this number")
-    public double strandArtifactPosteriorProbThreshold = 0.99;
-
-    @Argument(fullName = MIN_STRAND_ARTIFACT_ALLELE_FRACTION_LONG_NAME, shortName = "strand-af", optional = true, doc = "Only filter a variant if the MAP estimate of allele fraction given artifact is below this number")
-    public double strandArtifactAlleleFractionThreshold = 0.01;
 
     @Argument(fullName = CONTAMINATION_TABLE_LONG_NAME, optional = true, doc = "Table containing contamination information.")
     public List<File> contaminationTable = new ArrayList<>();

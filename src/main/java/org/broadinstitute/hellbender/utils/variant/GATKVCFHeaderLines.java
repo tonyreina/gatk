@@ -111,7 +111,6 @@ public class GATKVCFHeaderLines {
         addFormatLine(new VCFFormatHeaderLine(F1R2_KEY, VCFHeaderLineCount.R, VCFHeaderLineType.Integer, "Count of reads in F1R2 pair orientation supporting each allele"));
         addFormatLine(new VCFFormatHeaderLine(F2R1_KEY, VCFHeaderLineCount.R, VCFHeaderLineType.Integer, "Count of reads in F2R1 pair orientation supporting each allele"));
         addFormatLine(new VCFFormatHeaderLine(STRAND_ARTIFACT_POSTERIOR_KEY, 3, VCFHeaderLineType.Float, "posterior probabilities of the presence of strand artifact"));
-        addFormatLine(new VCFFormatHeaderLine(STRAND_ARTIFACT_AF_KEY, 3, VCFHeaderLineType.Float, "MAP estimates of allele fraction given z"));
         addFormatLine(new VCFFormatHeaderLine(ROF_POSTERIOR_KEY, 1, VCFHeaderLineType.Float, "posterior probability of read orientation-based artifacts"));
         addFormatLine(new VCFFormatHeaderLine(ROF_PRIOR_KEY, 1, VCFHeaderLineType.Float, "prior probability of read orientation-based artifacts under the present referene context"));
         addFormatLine(new VCFFormatHeaderLine(ROF_TYPE_KEY, 1, VCFHeaderLineType.String, "type of read orientation artifact (F1R2 or F2R1)"));
@@ -206,12 +205,12 @@ public class GATKVCFHeaderLines {
         addInfoLine(new VCFInfoHeaderLine(IN_PON_VCF_ATTRIBUTE, 0, VCFHeaderLineType.Flag, "site found in panel of normals"));
         addInfoLine(new VCFInfoHeaderLine(POPULATION_AF_VCF_ATTRIBUTE, VCFHeaderLineCount.A, VCFHeaderLineType.Float, "negative-log-10 population allele frequencies of alt alleles"));
         addInfoLine(new VCFInfoHeaderLine(GERMLINE_QUAL_VCF_ATTRIBUTE, VCFHeaderLineCount.A, VCFHeaderLineType.Integer, "Phred-scaled qualities that alt allele are not germline variants"));
+        addInfoLine(new VCFInfoHeaderLine(STRAND_QUAL_VCF_ATTRIBUTE, 1, VCFHeaderLineType.Integer, "Phred-scaled quality of strand bias artifact"));
         addInfoLine(new VCFInfoHeaderLine(CONTAMINATION_QUAL_ATTRIBUTE, 1, VCFHeaderLineType.Float, "Phred-scaled qualities that alt allele are not due to contamination"));
         addInfoLine(new VCFInfoHeaderLine(NORMAL_ARTIFACT_LOD_ATTRIBUTE, VCFHeaderLineCount.A, VCFHeaderLineType.Float, "log odds of artifact in normal with same allele fraction as tumor"));
         addInfoLine(new VCFInfoHeaderLine(ORIGINAL_CONTIG_MISMATCH_KEY, 1, VCFHeaderLineType.Integer, "Number of alt reads whose original alignment doesn't match the current contig."));
         addInfoLine(new VCFInfoHeaderLine(N_COUNT_KEY, 1, VCFHeaderLineType.Integer, "Count of N bases in the pileup"));
         addInfoLine(new VCFInfoHeaderLine(UNIQUE_ALT_READ_SET_COUNT_KEY, 1, VCFHeaderLineType.Integer, "Number of ALT reads with unique start and mate end positions at a variant site"));
-        addInfoLine(new VCFInfoHeaderLine(STRAND_ARTIFACT_AF_KEY, 3, VCFHeaderLineType.Float, "MAP estimates of allele fraction given z"));
         addInfoLine(new VCFInfoHeaderLine(STRAND_ARTIFACT_POSTERIOR_KEY, 3, VCFHeaderLineType.Float, "posterior probabilities of the presence of strand artifact"));
 
     }

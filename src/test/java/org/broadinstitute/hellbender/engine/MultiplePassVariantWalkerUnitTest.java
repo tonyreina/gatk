@@ -7,14 +7,14 @@ import org.broadinstitute.hellbender.cmdline.TestProgramGroup;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
-public class TwoPassVariantWalkerUnitTest extends GATKBaseTest {
+public class MultiplePassVariantWalkerUnitTest extends GATKBaseTest {
     @CommandLineProgramProperties(
-            summary = "An example subclass of TwoPassVariantWalker",
-            oneLineSummary = "An example subclass of TwoPassVariantWalker",
+            summary = "An example subclass of MultiplePassVariantWalker",
+            oneLineSummary = "An example subclass of MultiplePassVariantWalker",
             programGroup = TestProgramGroup.class,
             omitFromCommandLine = true
     )
-    private static class DummyTwoPassVariantWalker extends TwoPassVariantWalker {
+    private static class DummyMultiplePassVariantWalker extends TwoPassVariantWalker {
         public int firstPass = 0;
         public int secondPass = 0;
         public boolean visitedAfterFirstPass = false;
@@ -37,7 +37,7 @@ public class TwoPassVariantWalkerUnitTest extends GATKBaseTest {
 
     @Test
     public void testTwoPassTraversal() {
-        final DummyTwoPassVariantWalker walker = new DummyTwoPassVariantWalker();
+        final DummyMultiplePassVariantWalker walker = new DummyMultiplePassVariantWalker();
         final String testVcf = "src/test/resources/org/broadinstitute/hellbender/tools/walkers/variantutils/VariantsToTable/multiallelic.vcf";
 
         final String[] args = { "-V", testVcf };

@@ -8,10 +8,8 @@ import org.broadinstitute.barclay.argparser.Argument;
 import org.broadinstitute.barclay.argparser.CommandLineProgramProperties;
 import org.broadinstitute.hellbender.cmdline.StandardArgumentDefinitions;
 import org.broadinstitute.hellbender.cmdline.programgroups.ExampleProgramGroup;
-import org.broadinstitute.hellbender.engine.FeatureContext;
-import org.broadinstitute.hellbender.engine.ReadsContext;
-import org.broadinstitute.hellbender.engine.ReferenceContext;
-import org.broadinstitute.hellbender.engine.TwoPassVariantWalker;
+import org.broadinstitute.hellbender.engine.*;
+import org.broadinstitute.hellbender.exceptions.GATKException;
 import org.broadinstitute.hellbender.utils.variant.GATKVCFConstants;
 
 import java.io.File;
@@ -32,7 +30,7 @@ import java.util.List;
         programGroup = ExampleProgramGroup.class,
         omitFromCommandLine = true
 )
-public class ExampleTwoPassVariantWalker extends TwoPassVariantWalker {
+public class ExampleMultiplePassVariantWalker extends TwoPassVariantWalker {
     @Argument(fullName = StandardArgumentDefinitions.OUTPUT_LONG_NAME, shortName = StandardArgumentDefinitions.OUTPUT_SHORT_NAME,
             doc = "Output vcf", optional = true)
     private File outputVcf = null;

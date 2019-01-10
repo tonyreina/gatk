@@ -341,7 +341,7 @@ public class SomaticGenotypingEngine extends AssemblyBasedCallerGenotypingEngine
                     // keep the higher-quality read
                     readsToDiscard.add(read.likelihood < mate.likelihood ? read.read : mate.read);
 
-                    // mark the read to indicate that its mate was dropped - so that we can account for it in {@link StrandArtifact}
+                    // mark the read to indicate that its mate was dropped - so that we can account for it in {@link StrandArtifactFilter}
                     // and {@link StrandBiasBySample}
                     if (MTAC.annotateBasedOnReads){
                         final GATKRead readToKeep = read.likelihood >= mate.likelihood ? read.read : mate.read;

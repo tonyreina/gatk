@@ -35,6 +35,9 @@ public class Mutect2FilteringInfo {
     // for each PID, the positions with PGTs of filtered genotypes
     private final Map<String, ImmutablePair<Integer, Set<String>>> filteredPhasedCalls;
 
+    // artifact posteriors from first pass
+    List<Double> firstPassArtifactProbabilities = new ArrayList<>();
+
     public Mutect2FilteringInfo(M2FiltersArgumentCollection MTFAC, final VCFHeader vcfHeader) {
         this.MTFAC = MTFAC;
         normalSamples = vcfHeader.getMetaDataInInputOrder().stream()
@@ -95,21 +98,27 @@ public class Mutect2FilteringInfo {
         }
     }
 
-    public void adjustThreshold(final List<Double> posteriors) {
+    public void addFirstPassArtifactProbability(final double prob) {
+        firstPassArtifactProbabilities.add(prob);
+    }
+
+    public void adjustThreshold() {
         final double threshold;
         switch (MTFAC.thresholdStrategy) {
             case CONSTANT:
                 threshold = MTFAC.posteriorThreshold;
                 break;
             case FALSE_DISCOVERY_RATE:
-                threshold = calculateThresholdBasedOnFalseDiscoveryRate(posteriors, MTFAC.maxFalsePositiveRate);
+                threshold = calculateThresholdBasedOnFalseDiscoveryRate(firstPassArtifactProbabilities, MTFAC.maxFalsePositiveRate);
                 break;
             case OPTIMAL_F_SCORE:
-                threshold = calculateThresholdBasedOnOptimalFScore(posteriors, MTFAC.fScoreBeta);
+                threshold = calculateThresholdBasedOnOptimalFScore(firstPassArtifactProbabilities, MTFAC.fScoreBeta);
                 break;
             default:
                 throw new GATKException.ShouldNeverReachHereException("Invalid threshold strategy type: " + MTFAC.thresholdStrategy + ".");
         }
+
+        firstPassArtifactProbabilities.clear();
 
         artifactProbabilityThreshold = threshold;
     }
