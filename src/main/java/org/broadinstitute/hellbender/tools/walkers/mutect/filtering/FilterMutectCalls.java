@@ -165,7 +165,7 @@ public final class FilterMutectCalls extends TwoPassVariantWalker {
 
     @Override
     protected void afterFirstPass() {
-        filteringInfo.adjustThreshold(firstPassArtifactProbabilities, MTFAC.maxFalsePositiveRate);
+        filteringInfo.adjustThreshold(firstPassArtifactProbabilities);
     }
 
     @Override

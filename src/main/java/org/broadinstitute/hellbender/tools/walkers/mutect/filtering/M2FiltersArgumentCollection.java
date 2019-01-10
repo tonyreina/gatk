@@ -30,7 +30,13 @@ public class M2FiltersArgumentCollection {
     public static final String MAX_CONTAMINATION_PROBABILITY_LONG_NAME = "max-contamination-probability";
     public static final String UNIQUE_ALT_READ_COUNT_LONG_NAME = "unique-alt-read-count";
     public static final String TUMOR_SEGMENTATION_LONG_NAME = "tumor-segmentation";
-    public static final String ORIENTATION_BIAS_FDR_LONG_NAME = "orientation-bias-fdr"; // FDR = false discovery rate
+
+    public static final String THRESHOLD_STRATEGY_LONG_NAME = "threshold-strategy";
+    public static final String FALSE_DISCOVERY_RATE_LONG_NAME = "false-discovery-rate";
+    public static final String POSTERIOR_THRESHOLD_LONG_NAME = "posterior-threshold";
+    public static final String F_SCORE_BETA_LONG_NAME = "f-score-beta";
+
+
     public static final String MAX_DISTANCE_TO_FILTERED_CALL_ON_SAME_HAPLOTYPE_LONG_NAME = "distance-on-haplotype";
     public static final String N_RATIO_LONG_NAME = "n-ratio";
     public static final String STRICT_STRAND_BIAS_LONG_NAME = "strict-strand-bias";
@@ -131,12 +137,21 @@ public class M2FiltersArgumentCollection {
     public boolean strictStrandBias = false;
 
     /**
-     * We set the filtering threshold for the read orientation filter such that the false discovery rate (FDR), which equals
-     * the ratio of expected number of false positives due to read orientation artifact to the total number of variants
-     * does not exceed this value.
+     * We set the filtering threshold such that the false discovery rate (FDR), which equals
+     * the ratio of expected number of false positives  to the total number of variants, does not exceed this value.
      */
-    @Argument(fullName = ORIENTATION_BIAS_FDR_LONG_NAME, optional = true, doc = "Mutect will calculate the threshold for the read orientation filter such that the FDR doesn't exceed this value")
+    @Argument(fullName = FALSE_DISCOVERY_RATE_LONG_NAME, optional = true, doc = "Mutect will calculate the threshold for the read orientation filter such that the FDR doesn't exceed this value")
     public double maxFalsePositiveRate = 0.05;
+
+
+    @Argument(fullName = POSTERIOR_THRESHOLD_LONG_NAME, optional = true, doc = "Constant artifact probability threshold used if CONSTANT threshold strategy is chosen")
+    public double posteriorThreshold = 0.05;
+
+    @Argument(fullName = F_SCORE_BETA_LONG_NAME, optional = true, doc = "F score beta, the relative weight of recall to precision, used if OPTIMAL_F_SCORE strategy is chosen")
+    public double fScoreBeta = 1.0;
+
+    @Argument(fullName = THRESHOLD_STRATEGY_LONG_NAME, optional = true, doc = "F score beta, the relative weight of recall to precision, used if F-sore threshold strategy is chosen")
+    public ThresholdStrategy thresholdStrategy = ThresholdStrategy.OPTIMAL_F_SCORE;
 
     @Argument(fullName = FILTERING_STATS_LONG_NAME, optional = true, doc = "Write the filtering statistics to this file")
     public File mutect2FilteringStatsTable = new File("Mutect2FilteringStats.tsv");

@@ -85,7 +85,7 @@ public class ReadOrientationModelIntegrationTest extends CommandLineProgramTest 
                         "-V", unfilteredVcf.getAbsolutePath(),
                         "-R", b37_reference_20_21,
                         "-O", filteredVcf.getAbsolutePath(),
-                        "--" + M2FiltersArgumentCollection.ORIENTATION_BIAS_FDR_LONG_NAME, "0.04",
+                        "--" + M2FiltersArgumentCollection.FALSE_DISCOVERY_RATE_LONG_NAME, "0.04",
                         "--" + M2FiltersArgumentCollection.FILTERING_STATS_LONG_NAME, filterStats.getAbsolutePath()),
                 FilterMutectCalls.class.getSimpleName()));
 

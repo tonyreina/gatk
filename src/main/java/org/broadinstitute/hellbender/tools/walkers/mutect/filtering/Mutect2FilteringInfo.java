@@ -1,11 +1,14 @@
 package org.broadinstitute.hellbender.tools.walkers.mutect.filtering;
 
+import com.google.common.annotations.VisibleForTesting;
 import htsjdk.samtools.util.OverlapDetector;
 import htsjdk.variant.variantcontext.Genotype;
 import htsjdk.variant.variantcontext.VariantContext;
 import htsjdk.variant.vcf.VCFHeader;
 import htsjdk.variant.vcf.VCFHeaderLine;
+import org.apache.commons.lang3.mutable.MutableDouble;
 import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.broadinstitute.hellbender.exceptions.GATKException;
 import org.broadinstitute.hellbender.tools.walkers.contamination.ContaminationRecord;
 import org.broadinstitute.hellbender.tools.walkers.contamination.MinorAlleleFractionRecord;
 import org.broadinstitute.hellbender.tools.walkers.mutect.Mutect2Engine;
@@ -92,8 +95,23 @@ public class Mutect2FilteringInfo {
         }
     }
 
-    public void adjustThreshold(final List<Double> posteriors, final double requestedFPR) {
-        artifactProbabilityThreshold = calculateThreshold(posteriors, requestedFPR);
+    public void adjustThreshold(final List<Double> posteriors) {
+        final double threshold;
+        switch (MTFAC.thresholdStrategy) {
+            case CONSTANT:
+                threshold = MTFAC.posteriorThreshold;
+                break;
+            case FALSE_DISCOVERY_RATE:
+                threshold = calculateThresholdBasedOnFalseDiscoveryRate(posteriors, MTFAC.maxFalsePositiveRate);
+                break;
+            case OPTIMAL_F_SCORE:
+                threshold = calculateThresholdBasedOnOptimalFScore(posteriors, MTFAC.fScoreBeta);
+                break;
+            default:
+                throw new GATKException.ShouldNeverReachHereException("Invalid threshold strategy type: " + MTFAC.thresholdStrategy + ".");
+        }
+
+        artifactProbabilityThreshold = threshold;
     }
 
     /**
@@ -105,7 +123,8 @@ public class Mutect2FilteringInfo {
      * @param requestedFPR We set the filtering threshold such that the FPR doesn't exceed this value
      * @return
      */
-    public static double calculateThreshold(final List<Double> posteriors, final double requestedFPR){
+    @VisibleForTesting
+    static double calculateThresholdBasedOnFalseDiscoveryRate(final List<Double> posteriors, final double requestedFPR){
         ParamUtils.isPositiveOrZero(requestedFPR, "requested FPR must be non-negative");
         final double thresholdForFilteringNone = 1.0;
         final double thresholdForFilteringAll = 0.0;
@@ -129,6 +148,48 @@ public class Mutect2FilteringInfo {
 
         // If the expected FP rate never exceeded the max tolerable value, then we can let everything pass
         return thresholdForFilteringNone;
+    }
+
+    /**
+     * Compute the filtering threshold that maximizes the F_beta score
+     *
+     * @param posteriors A list of posterior probabilities, which gets sorted
+     * @param beta relative weight of recall to precision
+     */
+    @VisibleForTesting
+    static double calculateThresholdBasedOnOptimalFScore(final List<Double> posteriors, final double beta){
+        ParamUtils.isPositiveOrZero(beta, "requested F-score beta must be non-negative");
+        final double thresholdForFilteringNone = 1.0;
+        final double thresholdForFilteringAll = 0.0;
+
+        Collections.sort(posteriors);
+
+        final double expectedTruePositives = posteriors.stream()
+                .mapToDouble(prob -> 1 - prob).sum();
+
+
+        // starting from filtering everything (threshold = 0) increase the threshold to maximize the F score
+        final MutableDouble truePositives = new MutableDouble(0);
+        final MutableDouble falsePositives = new MutableDouble(0);
+        final MutableDouble falseNegatives = new MutableDouble(expectedTruePositives);
+        int optimalIndexInclusive = -1; // include all indices up to and including this. -1 mean filter all.
+        double optimalFScore = 0;   // if you exclude everything, recall is zero
+
+        final int N = posteriors.size();
+
+        for (int n = 0; n < N; n++){
+            truePositives.add(1 - posteriors.get(n));
+            falsePositives.add(posteriors.get(n));
+            falseNegatives.subtract(1 - posteriors.get(n));
+            final double F = (1+beta*beta)*truePositives.getValue() /
+                    ((1+beta*beta)*truePositives.getValue() + beta*beta*falseNegatives.getValue() + falsePositives.getValue());
+            if (F >= optimalFScore) {
+                optimalIndexInclusive = n;
+                optimalFScore = F;
+            }
+        }
+
+        return optimalIndexInclusive == -1 ? 0 : (optimalIndexInclusive == N - 1 ? 1 : posteriors.get(optimalIndexInclusive));
     }
 
     public static boolean hasPhaseInfo(final Genotype genotype) {

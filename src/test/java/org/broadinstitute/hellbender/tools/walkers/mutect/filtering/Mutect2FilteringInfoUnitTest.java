@@ -23,7 +23,7 @@ public class Mutect2FilteringInfoUnitTest {
     public void testCalculateThreshold(final double[] posteriors,
                                        final double maxErrorRate,
                                        final double expectedThreshold) {
-        final double threshold = Mutect2FilteringInfo.calculateThreshold(Doubles.asList(posteriors), maxErrorRate);
+        final double threshold = Mutect2FilteringInfo.calculateThresholdBasedOnFalseDiscoveryRate(Doubles.asList(posteriors), maxErrorRate);
         Assert.assertEquals(threshold, expectedThreshold);
     }
 }
