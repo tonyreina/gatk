@@ -109,6 +109,7 @@ public final class GATKVCFConstants {
     public static final String NORMAL_ARTIFACT_LOD_ATTRIBUTE =      "NALOD";
     public static final String POPULATION_AF_VCF_ATTRIBUTE =        "POPAF";
     public static final String GERMLINE_QUAL_VCF_ATTRIBUTE =  "GERMQ";
+    public static final String SEQUENCING_QUAL_VCF_ATTRIBUTE =  "SEQQ";
     public static final String STRAND_QUAL_VCF_ATTRIBUTE =  "STRANDQ";
     public static final String REALIGNMENT_COUNTS_VCF_ATTRIBUTE =   "RCNTS";
     public static final String CONTAMINATION_QUAL_ATTRIBUTE =  "CONTQ";

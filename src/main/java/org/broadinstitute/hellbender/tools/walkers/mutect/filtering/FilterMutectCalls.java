@@ -159,6 +159,11 @@ public final class FilterMutectCalls extends MultiplePassVariantWalker {
                                 final FeatureContext featureContext,
                                 final int n) {
         if (n == 0) {
+            // TODO: perhaps accumulateDataForLEarning should output artifact probability
+            // TODO: so that any variant with decent evidence can be sent to filteringInfo
+            // TODO: in order to learn the global AF distribution after the first pass
+            // TODO: this needs to be global because the germline and contamination models
+            // TODO: also need this information
             filters.forEach(f -> f.accumulateDataForLearning(variant, filteringInfo));
         } else if (n == 1) {
             secondPassOptimizeThresholdApply(variant, readsContext, referenceContext, featureContext);
