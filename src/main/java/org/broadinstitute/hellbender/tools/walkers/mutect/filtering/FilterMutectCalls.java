@@ -140,7 +140,7 @@ public final class FilterMutectCalls extends MultiplePassVariantWalker {
             filters.add(new FragmentLengthFilter());
             filters.add(new NRatioFilter());
             filters.add(new StrictStrandBiasFilter());
-            filters.add(new ShortTandemRepeatFilter());
+            filters.add(new PolymeraseSlippageFilter());
             filters.add(new FilteredHaplotypeFilter());
             filters.add(new GermlineFilter());
         }
@@ -209,8 +209,8 @@ public final class FilterMutectCalls extends MultiplePassVariantWalker {
         final VariantContextBuilder vcb = new VariantContextBuilder(vc);
         vcb.filters(new HashSet<>());
 
-        final Map<String, Double> artifactProbabilities = filters.stream()
-                .collect(Collectors.toMap(f -> f.filterName(), f -> f.artifactProbability(vc, filteringInfo)));
+        final Map<Mutect2VariantFilter, Double> artifactProbabilities = filters.stream()
+                .collect(Collectors.toMap(f -> f, f -> f.artifactProbability(vc, filteringInfo)));
 
         final double maxArtifactProbability = artifactProbabilities.values().stream()
                 .mapToDouble(x->x).max().orElseGet(() -> 0);
@@ -221,12 +221,12 @@ public final class FilterMutectCalls extends MultiplePassVariantWalker {
             passingVariants.increment();
         }
 
-        for (final Map.Entry<String, Double> entry : artifactProbabilities.entrySet()) {
-            final String filter = entry.getKey();
+        for (final Map.Entry<Mutect2VariantFilter, Double> entry : artifactProbabilities.entrySet()) {
+            final String filter = entry.getKey().filterName();
             final double artifactProbability = entry.getValue();
 
             final String posteriorAnnotation = filterPhredPosteriorAnnotations.get(filter);
-            if (posteriorAnnotation != null) {
+            if (posteriorAnnotation != null && entry.getKey().requiredAnnotations().stream().allMatch(vc::hasAttribute)) {
                 vcb.attribute(posteriorAnnotation, QualityUtils.errorProbToQual(artifactProbability));
             }
 

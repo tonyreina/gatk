@@ -1,6 +1,5 @@
 package org.broadinstitute.hellbender.tools.walkers.mutect.filtering;
 
-import com.google.common.annotations.VisibleForTesting;
 import htsjdk.variant.variantcontext.VariantContext;
 import org.broadinstitute.hellbender.utils.GATKProtectedVariantContextUtils;
 import org.broadinstitute.hellbender.utils.MathUtils;
@@ -17,6 +16,7 @@ public class TumorEvidenceFilter extends Mutect2VariantFilter {
         return posteriorProbabilityOfError(MathUtils.arrayMax(tumorLods), filteringInfo.getMTFAC().log10PriorProbOfSomaticEvent);
     }
 
+    @Override
     public Optional<String> phredScaledPosteriorAnnotationName() {
         return Optional.of(GATKVCFConstants.SEQUENCING_QUAL_VCF_ATTRIBUTE);
     }
@@ -26,15 +26,5 @@ public class TumorEvidenceFilter extends Mutect2VariantFilter {
     }
 
     protected List<String> requiredAnnotations() { return Collections.singletonList(GATKVCFConstants.TUMOR_LOD_KEY); }
-
-    @VisibleForTesting
-    static double posteriorProbabilityOfError(final double log10OddsOfRealVersusError, final double log10PriorOfReal) {
-        final double[] unweightedPosteriorOfRealAndError = new double[] {log10OddsOfRealVersusError + log10PriorOfReal,
-                MathUtils.log10OneMinusPow10(log10PriorOfReal)};
-
-        final double[] posteriorOfRealAndError = MathUtils.normalizeFromLog10ToLinearSpace(unweightedPosteriorOfRealAndError);
-
-        return posteriorOfRealAndError[1];
-    }
 
 }

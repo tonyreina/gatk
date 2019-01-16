@@ -1,5 +1,6 @@
 package org.broadinstitute.hellbender.tools.walkers.mutect.filtering;
 
+import com.google.common.annotations.VisibleForTesting;
 import htsjdk.variant.variantcontext.Genotype;
 import htsjdk.variant.variantcontext.VariantContext;
 import htsjdk.variant.vcf.VCFConstants;
@@ -77,5 +78,15 @@ public abstract class Mutect2VariantFilter {
             }
         }
         return 0;
+    }
+
+    @VisibleForTesting
+    static double posteriorProbabilityOfError(final double log10OddsOfRealVersusError, final double log10PriorOfReal) {
+        final double[] unweightedPosteriorOfRealAndError = new double[] {log10OddsOfRealVersusError + log10PriorOfReal,
+                MathUtils.log10OneMinusPow10(log10PriorOfReal)};
+
+        final double[] posteriorOfRealAndError = MathUtils.normalizeFromLog10ToLinearSpace(unweightedPosteriorOfRealAndError);
+
+        return posteriorOfRealAndError[1];
     }
 }
