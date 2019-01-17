@@ -50,13 +50,19 @@ public class ContaminationFilter extends Mutect2VariantFilter {
         return weightedMedianPosteriorProbability(depthsAndPosteriors);
     }
 
+    @Override
+    public boolean isTechnicalArtifact() { return false; }
+
+    @Override
     public String filterName() {
         return GATKVCFConstants.CONTAMINATION_FILTER_NAME;
     }
 
+    @Override
     public Optional<String> phredScaledPosteriorAnnotationName() {
         return Optional.of(GATKVCFConstants.CONTAMINATION_QUAL_ATTRIBUTE);
     }
 
+    @Override
     protected List<String> requiredAnnotations() { return Collections.singletonList(GATKVCFConstants.POPULATION_AF_VCF_ATTRIBUTE); }
 }

@@ -18,9 +18,11 @@ public class ChimericOriginalAlignmentFilter extends HardFilter {
         return (double) nonMitochondrialOriginalAlignmentCount / altCount > filteringInfo.getMTFAC().maxNuMTFraction;
     }
 
+    @Override
     public String filterName() {
         return GATKVCFConstants.CHIMERIC_ORIGINAL_ALIGNMENT_FILTER_NAME;
     }
 
+    @Override
     protected List<String> requiredAnnotations() { return Collections.singletonList(GATKVCFConstants.ORIGINAL_CONTIG_MISMATCH_KEY); }
 }

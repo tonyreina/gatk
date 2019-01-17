@@ -9,13 +9,14 @@ import org.broadinstitute.hellbender.utils.variant.GATKVCFConstants;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 
-public class NormalArtifactFilter extends HardFilter {
+public class NormalArtifactFilter extends Mutect2VariantFilter {
     private static final double MIN_NORMAL_ARTIFACT_RATIO = 0.1;    // don't call normal artifact if allele fraction in normal is much smaller than allele fraction in tumor
     private static final int IMPUTED_NORMAL_BASE_QUALITY = 30;  // only used if normal base quality annotation fails somehow
 
     @Override
-    public boolean isArtifact(final VariantContext vc, final Mutect2FilteringInfo filteringInfo) {
+    public double calculateArtifactProbability(final VariantContext vc, final Mutect2FilteringInfo filteringInfo) {
         final double[] tumorLods = GATKProtectedVariantContextUtils.getAttributeAsDoubleArray(vc, GATKVCFConstants.TUMOR_LOD_KEY);
         final int indexOfMaxTumorLod = MathUtils.maxElementIndex(tumorLods);
 
@@ -32,29 +33,34 @@ public class NormalArtifactFilter extends HardFilter {
         final double normalAlleleFraction = normalDepth == 0 ? 0 : (double) normalAltDepth / normalDepth;
 
         if (normalAlleleFraction < MIN_NORMAL_ARTIFACT_RATIO * tumorAlleleFraction)  {
-            return false;
+            return 0.0;
         }
 
-        // negative because vcf shows log odds of not artifact / artifact (in order to have bigger positive --> good)
         final double[] normalArtifactLods = GATKProtectedVariantContextUtils.getAttributeAsDoubleArray(vc, GATKVCFConstants.NORMAL_ARTIFACT_LOD_ATTRIBUTE);
-        if (-normalArtifactLods[indexOfMaxTumorLod] > filteringInfo.getMTFAC().NORMAL_ARTIFACT_LOD_THRESHOLD) {
-            return true;
-        }
+        final double log10PriorOfReal = Math.log10(1 - filteringInfo.getPriorProbOfArtifactVersusVariant());
+        final double normalArtifactProbability = posteriorProbabilityOfError(normalArtifactLods[indexOfMaxTumorLod], log10PriorOfReal);
 
-        // the above filter misses artifacts whose support in the normal consists entirely of low base quality reads
+        // the normal artifact log odds misses artifacts whose support in the normal consists entirely of low base quality reads
         // Since a lot of low-BQ reads is itself evidence of an artifact, we filter these by hand via an estimated LOD
         // that uses the average base quality of *ref* reads in the normal
         final int medianRefBaseQuality = vc.getAttributeAsIntList(GATKVCFConstants.MEDIAN_BASE_QUALITY_KEY, IMPUTED_NORMAL_BASE_QUALITY).get(0);
         final double normalPValue = 1 - new BinomialDistribution(null, normalDepth, QualityUtils.qualToErrorProb(medianRefBaseQuality))
                 .cumulativeProbability(normalAltDepth - 1);
 
-        return normalPValue < M2FiltersArgumentCollection.normalPileupPValueThreshold;
+        return normalPValue < M2FiltersArgumentCollection.normalPileupPValueThreshold ? 1.0 : normalArtifactProbability;
     }
 
+    @Override
+    public Optional<String> phredScaledPosteriorAnnotationName() {
+        return Optional.empty();
+    }
+
+    @Override
     public String filterName() {
         return GATKVCFConstants.ARTIFACT_IN_NORMAL_FILTER_NAME;
     }
 
+    @Override
     protected List<String> requiredAnnotations() {
         return Arrays.asList(GATKVCFConstants.NORMAL_ARTIFACT_LOD_ATTRIBUTE, GATKVCFConstants.TUMOR_LOD_KEY);
     }

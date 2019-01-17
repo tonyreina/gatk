@@ -162,12 +162,21 @@ public final class FilterMutectCalls extends MultiplePassVariantWalker {
                                 final FeatureContext featureContext,
                                 final int n) {
         if (n == 0) {
-            // TODO: perhaps accumulateDataForLEarning should output artifact probability
-            // TODO: so that any variant with decent evidence can be sent to filteringInfo
-            // TODO: in order to learn the global AF distribution after the first pass
-            // TODO: this needs to be global because the germline and contamination models
-            // TODO: also need this information
             filters.forEach(f -> f.accumulateDataForLearning(variant, filteringInfo));
+
+            double artifactProbability = 0;
+            double technicalArtifactProbability = 0;
+
+            for (final Mutect2VariantFilter filter : filters) {
+                final double prob = filter.artifactProbability(variant, filteringInfo);
+                artifactProbability = Math.max(artifactProbability, prob);
+                technicalArtifactProbability = filter.isTechnicalArtifact() ? Math.max(technicalArtifactProbability, prob) : technicalArtifactProbability;
+            }
+
+            filteringInfo.addRealVariantCount(1 - artifactProbability);
+            filteringInfo.addTechnicalArtifactCount(technicalArtifactProbability);
+
+            // TODO: if real variant probability is significant, send allele fraction info the filteringInfo
         } else if (n == 1) {
             secondPassOptimizeThresholdApply(variant, readsContext, referenceContext, featureContext);
         } else if (n == 2) {
@@ -180,6 +189,7 @@ public final class FilterMutectCalls extends MultiplePassVariantWalker {
     @Override
     protected void afterNthPass(final int n) {
         if (n == 0) {
+            filteringInfo.learnPriorProbOfArtifactVersusVariant();
             filters.forEach(f -> f.learnParameters());
         } else if (n == 1) {
             filteringInfo.adjustThreshold();

@@ -14,7 +14,6 @@ import org.broadinstitute.hellbender.utils.variant.GATKVCFConstants;
 import java.util.*;
 import java.util.stream.Collectors;
 
-//TODO: make it probabilistic filter
 public class GermlineFilter extends Mutect2VariantFilter {
     private static final double MIN_ALLELE_FRACTION_FOR_GERMLINE_HOM_ALT = 0.9;
 
@@ -78,14 +77,20 @@ public class GermlineFilter extends Mutect2VariantFilter {
         return Math.pow(10.0, log10GermlinePosteriors[indexOfMaxTumorLod]);
     }
 
+    @Override
+    public boolean isTechnicalArtifact() { return false; }
+
+    @Override
     public String filterName() {
         return GATKVCFConstants.GERMLINE_RISK_FILTER_NAME;
     }
 
+    @Override
     public Optional<String> phredScaledPosteriorAnnotationName() {
         return Optional.of(GATKVCFConstants.GERMLINE_QUAL_VCF_ATTRIBUTE);
     }
 
+    @Override
     protected List<String> requiredAnnotations() {
         return Arrays.asList(GATKVCFConstants.TUMOR_LOD_KEY, GATKVCFConstants.POPULATION_AF_VCF_ATTRIBUTE);
     }

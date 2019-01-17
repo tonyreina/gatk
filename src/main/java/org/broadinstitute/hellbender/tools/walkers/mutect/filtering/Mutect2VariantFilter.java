@@ -28,6 +28,11 @@ public abstract class Mutect2VariantFilter {
     protected void accumulateDataForLearning(final VariantContext vc, final Mutect2FilteringInfo filteringInfo) { }
     protected void learnParameters() { }
 
+    // by default assume that anything filtered is a technical artifact, but some filters, for example the germline and
+    // contamination filters involve evidence of real, non-somatic variation.  These should not inform our models of
+    // technical artifacts.
+    public boolean isTechnicalArtifact() { return true; }
+
     public abstract String filterName();
 
     public abstract Optional<String> phredScaledPosteriorAnnotationName();

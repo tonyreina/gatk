@@ -36,9 +36,11 @@ public class StrictStrandBiasFilter extends HardFilter {
         return Math.min(altForwardCount.getValue(), altReverseCount.getValue()) >= filteringInfo.getMTFAC().minReadsOnEachStrand;
     }
 
+    @Override
     public String filterName() {
         return GATKVCFConstants.STRICT_STRAND_BIAS_FILTER_NAME;
     }
 
+    @Override
     protected List<String> requiredAnnotations() { return Collections.emptyList(); }
 }

@@ -55,10 +55,12 @@ public class PolymeraseSlippageFilter extends Mutect2VariantFilter {
         return Optional.of(GATKVCFConstants.POLYMERASE_SLIPPAGE_QUAL_VCF_ATTRIBUTE);
     }
 
+    @Override
     public String filterName() {
         return GATKVCFConstants.STR_CONTRACTION_FILTER_NAME;
     }
 
+    @Override
     protected List<String> requiredAnnotations() {
         return Arrays.asList(GATKVCFConstants.REPEATS_PER_ALLELE_KEY, GATKVCFConstants.REPEAT_UNIT_KEY);
     }

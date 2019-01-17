@@ -20,9 +20,11 @@ public class MappingQualityFilter extends HardFilter {
         return mappingQualityByAllele.get(indelLength < filteringInfo.getMTFAC().longIndelLength ? 1 : 0) < filteringInfo.getMTFAC().minMedianMappingQuality;
     }
 
+    @Override
     public String filterName() {
         return GATKVCFConstants.MEDIAN_MAPPING_QUALITY_FILTER_NAME;
     }
 
+    @Override
     protected List<String> requiredAnnotations() { return Collections.singletonList(MappingQuality.KEY); }
 }

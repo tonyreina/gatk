@@ -34,6 +34,11 @@ public class Mutect2FilteringInfo {
 
     private double log10PriorOfSomaticVariant;
 
+    private double priorProbOfArtifactVersusVariant;
+
+    private final MutableDouble realVariantCount = new MutableDouble(0);
+    private final MutableDouble technicalArtifactCount = new MutableDouble(0);
+
     // for each PID, the positions with PGTs of filtered genotypes
     private final Map<String, ImmutablePair<Integer, Set<String>>> filteredPhasedCalls;
 
@@ -64,6 +69,8 @@ public class Mutect2FilteringInfo {
         filteredPhasedCalls = new HashMap<>();
 
         log10PriorOfSomaticVariant = MTFAC.log10PriorProbOfSomaticEvent;
+
+        priorProbOfArtifactVersusVariant = MTFAC.initialPriorOfArtifactVersusVariant;
     }
 
     public M2FiltersArgumentCollection getMTFAC() {
@@ -92,6 +99,8 @@ public class Mutect2FilteringInfo {
 
     public double getLog10PriorOfSomaticVariant() { return log10PriorOfSomaticVariant; }
 
+    public double getPriorProbOfArtifactVersusVariant() { return priorProbOfArtifactVersusVariant; }
+
     public void recordFilteredHaplotypes(final VariantContext vc) {
         final Map<String, Set<String>> phasedGTsForEachPhaseID = vc.getGenotypes().stream()
                 .filter(gt -> !normalSamples.contains(gt.getSampleName()))
@@ -106,6 +115,14 @@ public class Mutect2FilteringInfo {
 
     public void addFirstPassArtifactProbability(final double prob) {
         firstPassArtifactProbabilities.add(prob);
+    }
+
+    public void addRealVariantCount(final double x) { realVariantCount.add(x); }
+
+    public void addTechnicalArtifactCount(final double x) { technicalArtifactCount.add(x); }
+
+    public void learnPriorProbOfArtifactVersusVariant() {
+        priorProbOfArtifactVersusVariant = (technicalArtifactCount.getValue() + 1) / (realVariantCount.getValue() + technicalArtifactCount.getValue() + 2);
     }
 
     public void adjustThreshold() {

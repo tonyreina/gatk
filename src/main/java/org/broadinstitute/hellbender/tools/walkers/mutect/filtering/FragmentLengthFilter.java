@@ -15,9 +15,11 @@ public class FragmentLengthFilter extends HardFilter {
         return Math.abs(fragmentLengthByAllele.get(1) - fragmentLengthByAllele.get(0)) > filteringInfo.getMTFAC().maxMedianFragmentLengthDifference;
     }
 
+    @Override
     public String filterName() {
         return GATKVCFConstants.MEDIAN_FRAGMENT_LENGTH_DIFFERENCE_FILTER_NAME;
     }
 
+    @Override
     protected List<String> requiredAnnotations() { return Collections.singletonList(FragmentLength.KEY); }
 }

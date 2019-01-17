@@ -12,9 +12,11 @@ public class PanelOfNormalsFilter extends HardFilter {
         return vc.hasAttribute(GATKVCFConstants.IN_PON_VCF_ATTRIBUTE);
     }
 
+    @Override
     public String filterName() {
         return GATKVCFConstants.PON_FILTER_NAME;
     }
 
+    @Override
     protected List<String> requiredAnnotations() { return Collections.emptyList(); }
 }

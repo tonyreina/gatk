@@ -125,10 +125,12 @@ public class StrandArtifactFilter extends Mutect2VariantFilter {
         return new EStep(forwardReverseNoneProbs[0], forwardReverseNoneProbs[1], forwardCount, reverseCount, forwardAltCount, reverseAltCount);
     }
 
+    @Override
     public String filterName() {
         return GATKVCFConstants.STRAND_ARTIFACT_FILTER_NAME;
     }
 
+    @Override
     protected List<String> requiredAnnotations() {
         return Arrays.asList(GATKVCFConstants.FORWARD_STRAND_COUNT_KEY);
     }
@@ -145,6 +147,7 @@ public class StrandArtifactFilter extends Mutect2VariantFilter {
         return new BetaBinomialDistribution(null, ALPHA_SEQ, BETA_SEQ, strandCount).logProbability(strandAltCount);
     }
 
+    @Override
     public Optional<String> phredScaledPosteriorAnnotationName() {
         return Optional.of(GATKVCFConstants.STRAND_QUAL_VCF_ATTRIBUTE);
     }

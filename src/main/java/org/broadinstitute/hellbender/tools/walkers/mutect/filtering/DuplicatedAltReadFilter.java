@@ -15,9 +15,11 @@ public class DuplicatedAltReadFilter extends HardFilter {
         return vc.getAttributeAsInt(UniqueAltReadCount.KEY, 1) <= filteringInfo.getMTFAC().uniqueAltReadCount;
     }
 
+    @Override
     public String filterName() {
         return GATKVCFConstants.DUPLICATED_EVIDENCE_FILTER_NAME;
     }
 
+    @Override
     protected List<String> requiredAnnotations() { return Collections.singletonList(UniqueAltReadCount.KEY); }
 }

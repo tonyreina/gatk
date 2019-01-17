@@ -13,9 +13,11 @@ public class ClusteredEventsFilter extends HardFilter {
         return eventCount > filteringInfo.getMTFAC().maxEventsInRegion;
     }
 
+    @Override
     public String filterName() {
         return GATKVCFConstants.CLUSTERED_EVENTS_FILTER_NAME;
     }
 
+    @Override
     protected List<String> requiredAnnotations() { return Collections.singletonList(GATKVCFConstants.EVENT_COUNT_IN_HAPLOTYPE_KEY); }
 }

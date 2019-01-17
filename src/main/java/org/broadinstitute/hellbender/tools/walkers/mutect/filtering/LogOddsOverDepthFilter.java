@@ -19,9 +19,11 @@ public class LogOddsOverDepthFilter extends HardFilter {
         return lod / depth < filteringInfo.getMTFAC().minLog10OddsDividedByDepth;
     }
 
+    @Override
     public String filterName() {
         return GATKVCFConstants.LOW_AVG_ALT_QUALITY_FILTER_NAME;
     }
 
+    @Override
     protected List<String> requiredAnnotations() { return Collections.singletonList(GATKVCFConstants.TUMOR_LOD_KEY); }
 }

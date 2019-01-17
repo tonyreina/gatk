@@ -23,9 +23,11 @@ public class NRatioFilter extends HardFilter {
         return (double) NCount / altCount >= filteringInfo.getMTFAC().nRatio;
     }
 
+    @Override
     public String filterName() {
         return GATKVCFConstants.N_RATIO_FILTER_NAME;
     }
 
+    @Override
     protected List<String> requiredAnnotations() { return Collections.singletonList(GATKVCFConstants.N_COUNT_KEY); }
 }

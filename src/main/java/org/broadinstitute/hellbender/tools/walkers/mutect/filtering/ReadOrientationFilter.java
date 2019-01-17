@@ -41,13 +41,15 @@ public class ReadOrientationFilter extends Mutect2VariantFilter {
         return artifactPosterior;
     }
 
+    @Override
     public String filterName() { return GATKVCFConstants.READ_ORIENTATION_ARTIFACT_FILTER_NAME; }
 
-    // the posterior is already annotated in the genotypes.  There's so variant-level posterior.
+    // the posterior is already annotated in the genotypes.  There's no variant-level posterior.
     @Override
     public Optional<String> phredScaledPosteriorAnnotationName() {
         return Optional.empty();
     }
 
+    @Override
     protected List<String> requiredAnnotations() { return Collections.emptyList(); }
 }

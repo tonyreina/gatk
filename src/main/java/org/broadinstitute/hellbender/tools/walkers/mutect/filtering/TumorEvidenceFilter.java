@@ -16,15 +16,22 @@ public class TumorEvidenceFilter extends Mutect2VariantFilter {
         return posteriorProbabilityOfError(MathUtils.arrayMax(tumorLods), filteringInfo.getLog10PriorOfSomaticVariant());
     }
 
+    // a lack of evidence means that the model of independent reads with error rates given by the base qualities explains
+    // the apparent variant.  This is not an artifact.
+    @Override
+    public boolean isTechnicalArtifact() { return false; }
+
     @Override
     public Optional<String> phredScaledPosteriorAnnotationName() {
         return Optional.of(GATKVCFConstants.SEQUENCING_QUAL_VCF_ATTRIBUTE);
     }
 
+    @Override
     public String filterName() {
         return GATKVCFConstants.TUMOR_LOD_FILTER_NAME;
     }
 
+    @Override
     protected List<String> requiredAnnotations() { return Collections.singletonList(GATKVCFConstants.TUMOR_LOD_KEY); }
 
 }

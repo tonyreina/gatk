@@ -34,7 +34,7 @@ public class M2FiltersArgumentCollection {
 
     @Argument(fullName = POSTERIOR_THRESHOLD_LONG_NAME, optional = true, doc = "Constant artifact probability threshold used if CONSTANT threshold strategy is chosen")
     public double posteriorThreshold = DEFAULT_CONSTANT_POSTERIOR_THRESHOLD;
-    
+
     /**
      * Mitochondria mode includes the filters {@link LogOddsOverDepthFilter} and {@link ChimericOriginalAlignmentFilter}
      * and excludes the filters {@link ClusteredEventsFilter}, {@link MultiallelicFilter}, {@link PolymeraseSlippageFilter},
@@ -128,6 +128,7 @@ public class M2FiltersArgumentCollection {
      * Parameters
      */
     public static final String LOG_10_PRIOR_OF_VARIANT_LONG_NAME = "log10-somatic-prior";
+    public static final String INITIAL_PRIOR_OF_ARTIFACT_VERSUS_VARIANT_LONG_NAME = "initial-artifact-prior";
     public static final String NORMAL_P_VALUE_THRESHOLD_LONG_NAME = "normal-p-value-threshold";
     public static final String MIN_POLYMERASE_SLIPPAGE_LENGTH = "min-slippage-length";
     public static final String PCR_SLIPPAGE_RATE_LONG_NAME = "pcr-slippage-rate";
@@ -135,6 +136,7 @@ public class M2FiltersArgumentCollection {
     public static final String LONG_INDEL_LENGTH_LONG_NAME = "long-indel-length";
 
     private static final double DEFAULT_LOG_10_PRIOR_OF_VARIANT = -6.0;
+    private static final double DEFAULT_INITIAL_PRIOR_OF_ARTIFACT_VERSUS_VARIANT = 0.9;
     private static final double DEFAULT_NORMAL_P_VALUE_THRESHOLD = 0.001;
     private static final int DEFAULT_MIN_SLIPPAGE_LENGTH = 8;
     private static final double DEFAULT_SLIPPAGE_RATE = 0.1;
@@ -143,6 +145,9 @@ public class M2FiltersArgumentCollection {
 
     @Argument(fullName= LOG_10_PRIOR_OF_VARIANT_LONG_NAME, doc="Log10 prior probability that a site has a somatic variant", optional = true)
     public double log10PriorProbOfSomaticEvent = DEFAULT_LOG_10_PRIOR_OF_VARIANT;
+
+    @Argument(fullName= INITIAL_PRIOR_OF_ARTIFACT_VERSUS_VARIANT_LONG_NAME, doc="Initial guess for prior probability that a called site is actually an artifact", optional = true)
+    public double initialPriorOfArtifactVersusVariant = DEFAULT_INITIAL_PRIOR_OF_ARTIFACT_VERSUS_VARIANT;
 
     @Argument(fullName = NORMAL_P_VALUE_THRESHOLD_LONG_NAME, optional = true, doc = "P value threshold for normal artifact filter")
     public static final double normalPileupPValueThreshold = DEFAULT_NORMAL_P_VALUE_THRESHOLD;

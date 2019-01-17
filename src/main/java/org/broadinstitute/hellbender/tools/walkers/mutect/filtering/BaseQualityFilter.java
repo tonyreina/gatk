@@ -19,9 +19,11 @@ public class BaseQualityFilter extends HardFilter {
         return baseQualityByAllele.get(indexOfMaxTumorLod + 1) < filteringInfo.getMTFAC().minMedianBaseQuality;
     }
 
+    @Override
     public String filterName() {
         return GATKVCFConstants.MEDIAN_BASE_QUALITY_FILTER_NAME;
     }
 
+    @Override
     protected List<String> requiredAnnotations() { return Collections.singletonList(GATKVCFConstants.MEDIAN_BASE_QUALITY_KEY); }
 }

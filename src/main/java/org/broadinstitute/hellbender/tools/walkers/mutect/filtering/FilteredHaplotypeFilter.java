@@ -39,9 +39,11 @@ public class FilteredHaplotypeFilter extends HardFilter {
         return filteredCall.getRight().contains(pgt) && Math.abs(filteredCall.getLeft() - position) <= filteringInfo.getMTFAC().maxDistanceToFilteredCallOnSameHaplotype;
     }
 
+    @Override
     public String filterName() {
         return GATKVCFConstants.BAD_HAPLOTYPE_FILTER_NAME;
     }
 
+    @Override
     protected List<String> requiredAnnotations() { return Collections.emptyList(); }
 }
