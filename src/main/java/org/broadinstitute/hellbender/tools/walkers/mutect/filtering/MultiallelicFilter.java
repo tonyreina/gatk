@@ -12,7 +12,11 @@ public class MultiallelicFilter extends HardFilter {
     @Override
     public boolean isArtifact(final VariantContext vc, final Mutect2FilteringInfo filteringInfo) {
         final double[] tumorLods = GATKProtectedVariantContextUtils.getAttributeAsDoubleArray(vc, GATKVCFConstants.TUMOR_LOD_KEY);
-        final long numPassingAltAlleles = Arrays.stream(tumorLods).filter(x -> x > filteringInfo.getMTFAC().TUMOR_LOD_THRESHOLD).count();
+
+        final long numPassingAltAlleles = Arrays.stream(tumorLods)
+                .map(lod -> posteriorProbabilityOfError(lod, filteringInfo.getLog10PriorOfSomaticVariant()))
+                .filter(prob -> prob < filteringInfo.getArtifactProbabilityThreshold())
+                .count();
 
         return numPassingAltAlleles > filteringInfo.getMTFAC().numAltAllelesThreshold;
     }

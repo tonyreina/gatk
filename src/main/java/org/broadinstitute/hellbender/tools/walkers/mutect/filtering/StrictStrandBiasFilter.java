@@ -13,7 +13,7 @@ import java.util.List;
 public class StrictStrandBiasFilter extends HardFilter {
     @Override
     public boolean isArtifact(final VariantContext vc, final Mutect2FilteringInfo filteringInfo) {
-        if (! filteringInfo.getMTFAC().strictStrandBias) {
+        if (filteringInfo.getMTFAC().minReadsOnEachStrand == 0) {
             return false;
         }
 
@@ -33,7 +33,7 @@ public class StrictStrandBiasFilter extends HardFilter {
         }
 
         // filter if there is no alt evidence in the forward or reverse strand
-        return altForwardCount.getValue() == 0 || altReverseCount.getValue() == 0;
+        return Math.min(altForwardCount.getValue(), altReverseCount.getValue()) >= filteringInfo.getMTFAC().minReadsOnEachStrand;
     }
 
     public String filterName() {

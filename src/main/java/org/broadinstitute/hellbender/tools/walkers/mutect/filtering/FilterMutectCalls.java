@@ -78,6 +78,8 @@ public final class FilterMutectCalls extends MultiplePassVariantWalker {
 
     public static final String FILTERING_STATUS_VCF_KEY = "filtering_status";
 
+    public static final String FILTERING_STATS_EXTENSION = ".filteringStats.tsv";
+
     @Argument(fullName= StandardArgumentDefinitions.OUTPUT_LONG_NAME,
             shortName=StandardArgumentDefinitions.OUTPUT_SHORT_NAME,
             doc="The output filtered VCF file", optional=false)
@@ -103,6 +105,7 @@ public final class FilterMutectCalls extends MultiplePassVariantWalker {
 
     @Override
     public void onTraversalStart() {
+
         final VCFHeader inputHeader = getHeaderForVariants();
         final Set<VCFHeaderLine> headerLines = inputHeader.getMetaDataInSortedOrder().stream()
                 .filter(line -> !line.getKey().equals(FILTERING_STATUS_VCF_KEY)) //remove header line from Mutect2 stating that calls are unfiltered.
@@ -129,6 +132,9 @@ public final class FilterMutectCalls extends MultiplePassVariantWalker {
         filters.add(new PanelOfNormalsFilter());
         filters.add(new NormalArtifactFilter());
         filters.add(new ReadOrientationFilter());
+        filters.add(new NRatioFilter());
+        filters.add(new StrictStrandBiasFilter());
+        filters.add(new ReadPositionFilter());
 
         if (MTFAC.mitochondria) {
             filters.add(new LogOddsOverDepthFilter());
@@ -136,10 +142,7 @@ public final class FilterMutectCalls extends MultiplePassVariantWalker {
         } else {
             filters.add(new ClusteredEventsFilter());
             filters.add(new MultiallelicFilter());
-            filters.add(new ReadPositionFilter());
             filters.add(new FragmentLengthFilter());
-            filters.add(new NRatioFilter());
-            filters.add(new StrictStrandBiasFilter());
             filters.add(new PolymeraseSlippageFilter());
             filters.add(new FilteredHaplotypeFilter());
             filters.add(new GermlineFilter());
@@ -187,7 +190,7 @@ public final class FilterMutectCalls extends MultiplePassVariantWalker {
                             entry.getValue().getValue(), totalCalls, entry.getValue().getValue() / totalCalls))
                     .collect(Collectors.toList());
 
-            FilterStats.writeM2FilterSummary(filterStats, MTFAC.mutect2FilteringStatsTable);
+            FilterStats.writeM2FilterSummary(filterStats, new File(outputVcf + FILTERING_STATS_EXTENSION));
         } else {
             throw new GATKException.ShouldNeverReachHereException("This three-pass walker should never reach (zero-indexed) pass " + n);
         }

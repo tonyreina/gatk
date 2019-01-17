@@ -14,8 +14,8 @@ public class ChimericOriginalAlignmentFilter extends HardFilter {
         }
 
         final int altCount = vc.getGenotypes().stream().mapToInt(g -> g.getAD()[1]).sum();
-        final int nonMtOa = vc.getAttributeAsInt(GATKVCFConstants.ORIGINAL_CONTIG_MISMATCH_KEY, 0);
-        return (double) nonMtOa / altCount > filteringInfo.getMTFAC().nonMtAltByAlt;
+        final int nonMitochondrialOriginalAlignmentCount = vc.getAttributeAsInt(GATKVCFConstants.ORIGINAL_CONTIG_MISMATCH_KEY, 0);
+        return (double) nonMitochondrialOriginalAlignmentCount / altCount > filteringInfo.getMTFAC().maxNuMTFraction;
     }
 
     public String filterName() {

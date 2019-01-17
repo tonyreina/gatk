@@ -1036,8 +1036,8 @@ public class Mutect2IntegrationTest extends CommandLineProgramTest {
         new Main().instanceMain(makeCommandLineArgs(Arrays.asList(
                 "-O", filteredVcf.getAbsolutePath(),
                 "-V", StrandBiasNVcf.getAbsolutePath(),
-                "-" + M2FiltersArgumentCollection.STRICT_STRAND_BIAS_LONG_NAME, "true",
-                "-" + M2FiltersArgumentCollection.N_RATIO_LONG_NAME, Double.toString(nRatio)),
+                "-" + M2FiltersArgumentCollection.MIN_READS_ON_EACH_STRAND_LONG_NAME, "1",
+                "-" + M2FiltersArgumentCollection.MAX_N_RATIO_LONG_NAME, Double.toString(nRatio)),
                 FilterMutectCalls.class.getSimpleName()));
 
         final Optional<VariantContext> vc = VariantContextTestUtils.streamVcf(filteredVcf).findAny();

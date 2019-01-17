@@ -16,7 +16,7 @@ public class LogOddsOverDepthFilter extends HardFilter {
 
         final Double lod = vc.getAttributeAsDouble(GATKVCFConstants.TUMOR_LOD_KEY, 1);
         final Double depth = vc.getAttributeAsDouble(VCFConstants.DEPTH_KEY, 1);
-        return lod / depth < filteringInfo.getMTFAC().lodByDepth;
+        return lod / depth < filteringInfo.getMTFAC().minLog10OddsDividedByDepth;
     }
 
     public String filterName() {

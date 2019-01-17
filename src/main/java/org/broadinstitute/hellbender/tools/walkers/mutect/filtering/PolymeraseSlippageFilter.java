@@ -24,7 +24,7 @@ public class PolymeraseSlippageFilter extends Mutect2VariantFilter {
 
         final int referenceSTRBaseCount = ru.length() * rpa[0];
         final int numPCRSlips = rpa[0] - rpa[1];
-        if (referenceSTRBaseCount >= filteringInfo.getMTFAC().minPcrSlippageBases && Math.abs(numPCRSlips) == 1) {
+        if (referenceSTRBaseCount >= filteringInfo.getMTFAC().minSlippageLength && Math.abs(numPCRSlips) == 1) {
             // calculate the p-value that out of n reads we would have at least k slippage reads
             // if this p-value is small we keep the variant (reject the PCR slippage hypothesis)
             final int[] ADs = sumADsOverSamples(vc, filteringInfo.getNormalSamples(), true, false);
@@ -38,10 +38,10 @@ public class PolymeraseSlippageFilter extends Mutect2VariantFilter {
 
             double likelihoodGivenSlippageArtifact;
             try {
-                likelihoodGivenSlippageArtifact = Beta.regularizedBeta(filteringInfo.getMTFAC().pcrSlippageRate, ADs[1] + 1, ADs[0] + 1);
+                likelihoodGivenSlippageArtifact = Beta.regularizedBeta(filteringInfo.getMTFAC().slippageRate, ADs[1] + 1, ADs[0] + 1);
             } catch (final MaxCountExceededException e) {
                 //if the special function can't be computed, use a binomial with fixed probability
-                likelihoodGivenSlippageArtifact = new BinomialDistribution(null, depth, filteringInfo.getMTFAC().pcrSlippageRate).probability(ADs[1]);
+                likelihoodGivenSlippageArtifact = new BinomialDistribution(null, depth, filteringInfo.getMTFAC().slippageRate).probability(ADs[1]);
             }
 
             return posteriorProbabilityOfError(Math.log10(likelihoodGivenRealVariant/likelihoodGivenSlippageArtifact), filteringInfo.getMTFAC().log10PriorProbOfSomaticEvent);

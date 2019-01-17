@@ -10,7 +10,6 @@ import org.broadinstitute.hellbender.utils.variant.GATKVCFConstants;
 import java.util.Arrays;
 import java.util.List;
 
-//TODO: handle normalSamples
 public class NormalArtifactFilter extends HardFilter {
     private static final double MIN_NORMAL_ARTIFACT_RATIO = 0.1;    // don't call normal artifact if allele fraction in normal is much smaller than allele fraction in tumor
     private static final int IMPUTED_NORMAL_BASE_QUALITY = 30;  // only used if normal base quality annotation fails somehow

@@ -32,6 +32,8 @@ public class Mutect2FilteringInfo {
 
     private double artifactProbabilityThreshold = FIRST_PASS_THRESHOLD;
 
+    private double log10PriorOfSomaticVariant;
+
     // for each PID, the positions with PGTs of filtered genotypes
     private final Map<String, ImmutablePair<Integer, Set<String>>> filteredPhasedCalls;
 
@@ -45,7 +47,7 @@ public class Mutect2FilteringInfo {
                 .map(VCFHeaderLine::getValue)
                 .collect(Collectors.toSet());
 
-        contaminationBySample = MTFAC.contaminationTable.stream()
+        contaminationBySample = MTFAC.contaminationTables.stream()
                 .map(file -> ContaminationRecord.readFromFile(file).get(0))
                 .collect(Collectors.toMap(rec -> rec.getSample(), rec -> rec.getContamination()));
 
@@ -60,6 +62,8 @@ public class Mutect2FilteringInfo {
                 .collect(Collectors.toMap(ImmutablePair::getLeft, p -> OverlapDetector.create(p.getRight())));
 
         filteredPhasedCalls = new HashMap<>();
+
+        log10PriorOfSomaticVariant = MTFAC.log10PriorProbOfSomaticEvent;
     }
 
     public M2FiltersArgumentCollection getMTFAC() {
@@ -85,6 +89,8 @@ public class Mutect2FilteringInfo {
     public double getArtifactProbabilityThreshold() {
         return artifactProbabilityThreshold;
     }
+
+    public double getLog10PriorOfSomaticVariant() { return log10PriorOfSomaticVariant; }
 
     public void recordFilteredHaplotypes(final VariantContext vc) {
         final Map<String, Set<String>> phasedGTsForEachPhaseID = vc.getGenotypes().stream()
