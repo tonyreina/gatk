@@ -57,7 +57,7 @@ public class PolymeraseSlippageFilter extends Mutect2VariantFilter {
 
     @Override
     public String filterName() {
-        return GATKVCFConstants.STR_CONTRACTION_FILTER_NAME;
+        return GATKVCFConstants.POLYMERASE_SLIPPAGE;
     }
 
     @Override

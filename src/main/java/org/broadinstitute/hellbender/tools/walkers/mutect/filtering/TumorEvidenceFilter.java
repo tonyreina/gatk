@@ -28,7 +28,7 @@ public class TumorEvidenceFilter extends Mutect2VariantFilter {
 
     @Override
     public String filterName() {
-        return GATKVCFConstants.TUMOR_LOD_FILTER_NAME;
+        return GATKVCFConstants.TUMOR_EVIDENCE_FILTER_NAME;
     }
 
     @Override

@@ -64,8 +64,8 @@ public class GATKVCFHeaderLines {
         addFilterLine(new VCFFilterHeaderLine(CLUSTERED_EVENTS_FILTER_NAME, "Clustered events observed in the tumor"));
         addFilterLine(new VCFFilterHeaderLine(GERMLINE_RISK_FILTER_NAME, "Evidence indicates this site is germline, not somatic"));
         addFilterLine(new VCFFilterHeaderLine(PON_FILTER_NAME, "Blacklisted site in panel of normals"));
-        addFilterLine(new VCFFilterHeaderLine(TUMOR_LOD_FILTER_NAME, "Mutation does not meet likelihood threshold"));
-        addFilterLine(new VCFFilterHeaderLine(STR_CONTRACTION_FILTER_NAME, "Site filtered due to contraction of short tandem repeat region"));
+        addFilterLine(new VCFFilterHeaderLine(TUMOR_EVIDENCE_FILTER_NAME, "Mutation does not meet likelihood threshold"));
+        addFilterLine(new VCFFilterHeaderLine(POLYMERASE_SLIPPAGE, "Site filtered due to contraction of short tandem repeat region"));
         addFilterLine(new VCFFilterHeaderLine(MULTIALLELIC_FILTER_NAME, "Site filtered because too many alt alleles pass tumor LOD"));
         addFilterLine(new VCFFilterHeaderLine(STRAND_ARTIFACT_FILTER_NAME, "Evidence for alt allele comes from one read direction only"));
         addFilterLine(new VCFFilterHeaderLine(ARTIFACT_IN_NORMAL_FILTER_NAME, "artifact_in_normal"));

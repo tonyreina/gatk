@@ -1,6 +1,7 @@
 package org.broadinstitute.hellbender.tools.walkers.mutect.filtering;
 
 import org.broadinstitute.hellbender.exceptions.UserException;
+import org.broadinstitute.hellbender.utils.MathUtils;
 import org.broadinstitute.hellbender.utils.tsv.DataLine;
 import org.broadinstitute.hellbender.utils.tsv.TableColumnCollection;
 import org.broadinstitute.hellbender.utils.tsv.TableWriter;
@@ -10,37 +11,41 @@ import java.io.IOException;
 import java.util.Collection;
 
 public class FilterStats {
-    private final String filterName;
-    private final double threshold;
-    private final double expectedNumFPs;
-    private final int numPassingVariants;
-    private final double expectedFPR;
+    public static final String THRESHOLD_METADATA_TAG = "threshold";
+    public static final String SENSITIVITY_METADATA_TAG = "sensitivity";
+    public static final String FDR_METADATA_TAG = "fdr";
 
-    public FilterStats(final String filterName, final double threshold, final double expectedNumFPs,
-                       final int numPassingVariants, final double expectedFPR){
+    private final String filterName;
+    private final double falsePositiveCount;
+    private final double falseDiscoveryRate;
+    private final double falseNegativeCount;
+    private final double falseNegativeRate;
+
+    public FilterStats(final String filterName, final double falsePositiveCount, final double falseDiscoveryRate,
+                       final double falseNegativeCount, final double falseNegativeRate){
         this.filterName = filterName;
-        this.threshold = threshold;
-        this.expectedNumFPs = expectedNumFPs;
-        this.numPassingVariants = numPassingVariants;
-        this.expectedFPR = expectedFPR;
+        this.falsePositiveCount = falsePositiveCount;
+        this.falseDiscoveryRate = falseDiscoveryRate;
+        this.falseNegativeCount = falseNegativeCount;
+        this.falseNegativeRate = falseNegativeRate;
     }
 
     public String getFilterName() { return filterName; }
 
-    public double getExpectedNumFPs() { return expectedNumFPs; }
+    public double getFalsePositiveCount() { return falsePositiveCount; }
 
-    public int getNumPassingVariants() { return numPassingVariants; }
+    public double getFalseDiscoveryRate() { return falseDiscoveryRate; }
 
-    public double getThreshold() { return threshold; }
+    public double getFalseNegativeCount() { return falseNegativeCount; }
 
-    public double getExpectedFPR() { return expectedFPR; }
+    public double getFalseNegativeRate() { return falseNegativeRate; }
 
     private enum M2FilterStatsTableColumn {
-        FILTER_NAME("filter_name"),
-        THRESHOLD("threshold"),
-        EXPECTED_FALSE_POSITIVES("expected_fps"),
-        EXPECTED_FALSE_POSITIVE_RATE("expected_fpr"),
-        NUM_PASSING_VARIANTS("num_passing_variants");
+        FILTER("filter"),
+        FALSE_POSITIVE_COUNT("FP"),
+        FALSE_DISCOVERY_RATE("FDR"),
+        FALSE_NEGATIVE_COUNT("FN"),
+        FALSE_NEGATIVE_RATE("FNR");
 
         private String columnName;
 
@@ -61,20 +66,29 @@ public class FilterStats {
 
         @Override
         protected void composeLine(final FilterStats stats, final DataLine dataLine) {
-            dataLine.set(M2FilterStatsTableColumn.FILTER_NAME.toString(), stats.getFilterName())
-                    .set(M2FilterStatsTableColumn.THRESHOLD.toString(), stats.getThreshold())
-                    .set(M2FilterStatsTableColumn.EXPECTED_FALSE_POSITIVES.toString(), stats.getExpectedNumFPs())
-                    .set(M2FilterStatsTableColumn.EXPECTED_FALSE_POSITIVE_RATE.toString(), stats.getExpectedFPR())
-                    .set(M2FilterStatsTableColumn.NUM_PASSING_VARIANTS.toString(), stats.getNumPassingVariants());
+            dataLine.set(M2FilterStatsTableColumn.FILTER.toString(), stats.getFilterName())
+                    .set(M2FilterStatsTableColumn.FALSE_POSITIVE_COUNT.toString(), stats.getFalsePositiveCount(), 2)
+                    .set(M2FilterStatsTableColumn.FALSE_DISCOVERY_RATE.toString(), stats.getFalseDiscoveryRate(), 2)
+                    .set(M2FilterStatsTableColumn.FALSE_NEGATIVE_COUNT.toString(), stats.getFalseNegativeCount(), 2)
+                    .set(M2FilterStatsTableColumn.FALSE_NEGATIVE_RATE.toString(), stats.getFalseNegativeRate(), 2);
         }
     }
 
-    public static void writeM2FilterSummary(final Collection<FilterStats> filterStats, final File outputTable) {
+    public static void writeM2FilterSummary(final Collection<FilterStats> filterStats, final File outputTable,
+                                            final double threshold, final double totalCalls, final double expectedTruePositives,
+                                            final double expectedFalsePositives, final double expectedFalseNegatives) {
         try (Mutect2FilterStatsWriter writer = new Mutect2FilterStatsWriter(outputTable)) {
+            writer.writeMetadata(THRESHOLD_METADATA_TAG, Double.toString(round(threshold)));
+            writer.writeMetadata(FDR_METADATA_TAG, Double.toString(round(expectedFalsePositives / totalCalls)));
+            writer.writeMetadata(SENSITIVITY_METADATA_TAG, Double.toString(round(expectedTruePositives / (expectedTruePositives + expectedFalseNegatives))));
             writer.writeAllRecords(filterStats);
         } catch (IOException e) {
             throw new UserException(String.format("Encountered an IO exception while writing to %s.", outputTable), e);
         }
+    }
+
+    private static double round(final double x) {
+        return MathUtils.roundToNDecimalPlaces(x, 3);
     }
 
 }

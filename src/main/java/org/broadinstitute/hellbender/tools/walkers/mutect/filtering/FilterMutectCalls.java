@@ -102,7 +102,11 @@ public final class FilterMutectCalls extends MultiplePassVariantWalker {
 
     private Mutect2FilteringInfo filteringInfo;
 
-    private Map<String, MutableDouble> expectedFalsePositives = new HashMap<>();
+    private Map<String, MutableDouble> expectedFalsePositivesPerFilter = new HashMap<>();
+    private Map<String, MutableDouble> expectedFalseNegativesPerFilter = new HashMap<>();
+    private final MutableDouble expectedFalsePositives = new MutableDouble(0);
+    private final MutableDouble expectedTruePositives = new MutableDouble(0);
+    private final MutableDouble expectedFalseNegatives = new MutableDouble(0);
 
     private MutableInt passingVariants = new MutableInt(0);
 
@@ -162,7 +166,8 @@ public final class FilterMutectCalls extends MultiplePassVariantWalker {
             filters.add(new GermlineFilter());
         }
 
-        filters.forEach(filter -> expectedFalsePositives.put(filter.filterName(), new MutableDouble(0)));
+        filters.forEach(filter -> expectedFalsePositivesPerFilter.put(filter.filterName(), new MutableDouble(0)));
+        filters.forEach(filter -> expectedFalseNegativesPerFilter.put(filter.filterName(), new MutableDouble(0)));
 
         for (final Mutect2VariantFilter filter : filters) {
             filter.phredScaledPosteriorAnnotationName().ifPresent(ann -> filterPhredPosteriorAnnotations.put(filter.filterName(), ann));
@@ -210,14 +215,22 @@ public final class FilterMutectCalls extends MultiplePassVariantWalker {
             filteringInfo.adjustThreshold();
         } else if (n == 2) {
             final int totalCalls = passingVariants.getValue();
-            final List<FilterStats> filterStats = expectedFalsePositives.entrySet().stream()
-                    .map(entry -> new FilterStats(entry.getKey(), filteringInfo.getArtifactProbabilityThreshold(),
-                            entry.getValue().getValue(), totalCalls, entry.getValue().getValue() / totalCalls))
+            final List<FilterStats> filterStats = filters.stream().map(Mutect2VariantFilter::filterName)
+                    .map(filter -> {
+                        final double falseNegatives = expectedFalseNegativesPerFilter.get(filter).getValue();
+                        final double falsePositives = expectedFalsePositivesPerFilter.get(filter).getValue();
+                        final double fdr = falsePositives / totalCalls;
+                        final double totalTrueVariants = expectedTruePositives.getValue() + expectedFalseNegatives.getValue();
+
+                        return new FilterStats(filter, falsePositives, fdr, falseNegatives, falseNegatives / totalTrueVariants);
+                    })
+                    .filter(stats -> stats.getFalsePositiveCount() > 0 || stats.getFalseNegativeCount() > 0)
                     .collect(Collectors.toList());
 
             final File filteringStatsFile = new File(filteringStatsOutput != null ? filteringStatsOutput : outputVcf + FILTERING_STATS_EXTENSION);
 
-            FilterStats.writeM2FilterSummary(filterStats, filteringStatsFile);
+            FilterStats.writeM2FilterSummary(filterStats, filteringStatsFile, filteringInfo.getArtifactProbabilityThreshold(), totalCalls,
+                    expectedTruePositives.getValue(), expectedFalsePositives.getValue(), expectedFalseNegatives.getValue());
         } else {
             throw new GATKException.ShouldNeverReachHereException("This three-pass walker should never reach (zero-indexed) pass " + n);
         }
@@ -247,8 +260,12 @@ public final class FilterMutectCalls extends MultiplePassVariantWalker {
 
         final boolean filtered = maxArtifactProbability > filteringInfo.getArtifactProbabilityThreshold() - EPSILON;
 
-        if (!filtered) {
+        if (filtered) {
+            expectedFalseNegatives.add(1 - maxArtifactProbability);
+        } else {
             passingVariants.increment();
+            expectedFalsePositives.add(maxArtifactProbability);
+            expectedTruePositives.add(1 - maxArtifactProbability);
         }
 
         for (final Map.Entry<Mutect2VariantFilter, Double> entry : artifactProbabilities.entrySet()) {
@@ -262,8 +279,9 @@ public final class FilterMutectCalls extends MultiplePassVariantWalker {
 
             if (artifactProbability > EPSILON && artifactProbability > filteringInfo.getArtifactProbabilityThreshold() - EPSILON) {
                 vcb.filter(filter);
+                expectedFalseNegativesPerFilter.get(filter).add(1 - maxArtifactProbability);
             } else if (!filtered) {
-                expectedFalsePositives.get(filter).add(artifactProbability);
+                expectedFalsePositivesPerFilter.get(filter).add(artifactProbability);
             }
         }
 
