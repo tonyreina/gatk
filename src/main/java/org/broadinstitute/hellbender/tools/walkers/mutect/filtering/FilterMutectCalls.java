@@ -7,6 +7,8 @@ import htsjdk.variant.vcf.VCFHeader;
 import htsjdk.variant.vcf.VCFHeaderLine;
 import org.apache.commons.lang3.mutable.MutableDouble;
 import org.apache.commons.lang3.mutable.MutableInt;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 import org.broadinstitute.barclay.argparser.Argument;
 import org.broadinstitute.barclay.argparser.ArgumentCollection;
 import org.broadinstitute.barclay.argparser.CommandLineProgramProperties;
@@ -192,8 +194,10 @@ public final class FilterMutectCalls extends MultiplePassVariantWalker {
                 technicalArtifactProbability = filter.isTechnicalArtifact() ? Math.max(technicalArtifactProbability, prob) : technicalArtifactProbability;
             }
 
-            filteringInfo.addRealVariantCount(1 - artifactProbability);
-            filteringInfo.addTechnicalArtifactCount(technicalArtifactProbability);
+            final Pair<Double, Double> overallAndTechnicalArtifactProbs = overallAndTechnicalOnlyArtifactProbabilities(variant, filteringInfo);
+
+            filteringInfo.addRealVariantCount(1 - overallAndTechnicalArtifactProbs.getLeft());
+            filteringInfo.addTechnicalArtifactCount(overallAndTechnicalArtifactProbs.getRight());
 
             // TODO: if real variant probability is significant, send allele fraction info the filteringInfo
         } else if (n == 1) {
@@ -238,8 +242,7 @@ public final class FilterMutectCalls extends MultiplePassVariantWalker {
 
     private void secondPassOptimizeThresholdApply(final VariantContext vc, final ReadsContext readsContext, final ReferenceContext refContext, final FeatureContext fc) {
 
-        final double[] artifactProbabilities = filters.stream().mapToDouble(filter -> filter.artifactProbability(vc, filteringInfo)).toArray();
-        final double artifactProbability = MathUtils.arrayMax(artifactProbabilities);
+        final double artifactProbability = overallAndTechnicalOnlyArtifactProbabilities(vc, filteringInfo).getLeft();
 
         if (artifactProbability > filteringInfo.getArtifactProbabilityThreshold() - EPSILON) {
             filteringInfo.recordFilteredHaplotypes(vc);
@@ -255,17 +258,16 @@ public final class FilterMutectCalls extends MultiplePassVariantWalker {
         final Map<Mutect2VariantFilter, Double> artifactProbabilities = filters.stream()
                 .collect(Collectors.toMap(f -> f, f -> f.artifactProbability(vc, filteringInfo)));
 
-        final double maxArtifactProbability = artifactProbabilities.values().stream()
-                .mapToDouble(x->x).max().orElseGet(() -> 0);
+        final double overallArtifactProbability = overallAndTechnicalOnlyArtifactProbabilities(artifactProbabilities).getLeft();
 
-        final boolean filtered = maxArtifactProbability > filteringInfo.getArtifactProbabilityThreshold() - EPSILON;
+        final boolean filtered = overallArtifactProbability > filteringInfo.getArtifactProbabilityThreshold() - EPSILON;
 
         if (filtered) {
-            expectedFalseNegatives.add(1 - maxArtifactProbability);
+            expectedFalseNegatives.add(1 - overallArtifactProbability);
         } else {
             passingVariants.increment();
-            expectedFalsePositives.add(maxArtifactProbability);
-            expectedTruePositives.add(1 - maxArtifactProbability);
+            expectedFalsePositives.add(overallArtifactProbability);
+            expectedTruePositives.add(1 - overallArtifactProbability);
         }
 
         for (final Map.Entry<Mutect2VariantFilter, Double> entry : artifactProbabilities.entrySet()) {
@@ -279,13 +281,29 @@ public final class FilterMutectCalls extends MultiplePassVariantWalker {
 
             if (artifactProbability > EPSILON && artifactProbability > filteringInfo.getArtifactProbabilityThreshold() - EPSILON) {
                 vcb.filter(filter);
-                expectedFalseNegativesPerFilter.get(filter).add(1 - maxArtifactProbability);
+                expectedFalseNegativesPerFilter.get(filter).add(1 - overallArtifactProbability);
             } else if (!filtered) {
                 expectedFalsePositivesPerFilter.get(filter).add(artifactProbability);
             }
         }
 
         vcfWriter.add(vcb.make());
+    }
+
+    private Pair<Double, Double> overallAndTechnicalOnlyArtifactProbabilities(final VariantContext vc, final Mutect2FilteringInfo filteringInfo) {
+        return overallAndTechnicalOnlyArtifactProbabilities(filters.stream()
+                .collect(Collectors.toMap(f -> f, f -> f.calculateArtifactProbability(vc, filteringInfo))));
+    }
+
+    private Pair<Double, Double> overallAndTechnicalOnlyArtifactProbabilities(final Map<Mutect2VariantFilter, Double> map) {
+        final double technicalArtifactProbability = map.entrySet().stream().filter(entry -> entry.getKey().isTechnicalArtifact())
+                .mapToDouble(entry -> entry.getValue()).max().orElseGet(() -> 0);
+        final double nonTechnicalArtifactProbability = map.entrySet().stream().filter(entry -> !entry.getKey().isTechnicalArtifact())
+                .mapToDouble(entry -> entry.getValue()).max().orElseGet(() -> 0);
+
+        final double overallProbability = 1 - (1 - technicalArtifactProbability) * (1 - nonTechnicalArtifactProbability);
+
+        return ImmutablePair.of(overallProbability, technicalArtifactProbability);
     }
 
     @Override
