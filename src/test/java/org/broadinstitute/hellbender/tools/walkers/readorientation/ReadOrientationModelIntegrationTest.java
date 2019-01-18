@@ -69,7 +69,6 @@ public class ReadOrientationModelIntegrationTest extends CommandLineProgramTest 
         final File unfilteredVcf = GATKBaseTest.createTempFile("unfiltered", ".vcf");
         final File filteredVcf = GATKBaseTest.createTempFile("filtered", ".vcf");
         final File bamout = GATKBaseTest.createTempFile("SM-CEMAH", ".bam");
-        final File filterStats = GATKBaseTest.createTempFile("FilterStats", ".txt");
 
         new Main().instanceMain(makeCommandLineArgs(
                 Arrays.asList(
@@ -86,8 +85,7 @@ public class ReadOrientationModelIntegrationTest extends CommandLineProgramTest 
                         "-R", b37_reference_20_21,
                         "-O", filteredVcf.getAbsolutePath(),
                         "--" + M2FiltersArgumentCollection.FALSE_DISCOVERY_RATE_LONG_NAME, "0.04",
-                        "--" + M2FiltersArgumentCollection.FILTERING_STATS_LONG_NAME, filterStats.getAbsolutePath()),
-                FilterMutectCalls.class.getSimpleName()));
+                FilterMutectCalls.class.getSimpleName())));
 
 
         // These artifacts have been verified manually

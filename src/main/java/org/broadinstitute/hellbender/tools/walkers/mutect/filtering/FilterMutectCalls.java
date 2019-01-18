@@ -14,6 +14,7 @@ import org.broadinstitute.barclay.help.DocumentedFeature;
 import org.broadinstitute.hellbender.cmdline.StandardArgumentDefinitions;
 import org.broadinstitute.hellbender.engine.*;
 import org.broadinstitute.hellbender.exceptions.GATKException;
+import org.broadinstitute.hellbender.tools.walkers.mutect.Mutect2;
 import org.broadinstitute.hellbender.utils.MathUtils;
 import org.broadinstitute.hellbender.utils.QualityUtils;
 import picard.cmdline.programgroups.VariantFilteringProgramGroup;
@@ -74,16 +75,23 @@ import java.util.stream.Collectors;
 @DocumentedFeature
 public final class FilterMutectCalls extends MultiplePassVariantWalker {
 
+    public static final String FILTERING_STATS_LONG_NAME = "filtering-stats";
+
     private static final double EPSILON = 1.0e-10;
 
     public static final String FILTERING_STATUS_VCF_KEY = "filtering_status";
 
     public static final String FILTERING_STATS_EXTENSION = ".filteringStats.tsv";
 
-    @Argument(fullName= StandardArgumentDefinitions.OUTPUT_LONG_NAME,
-            shortName=StandardArgumentDefinitions.OUTPUT_SHORT_NAME,
+    @Argument(fullName = StandardArgumentDefinitions.OUTPUT_LONG_NAME, shortName =StandardArgumentDefinitions.OUTPUT_SHORT_NAME,
             doc="The output filtered VCF file", optional=false)
     private final String outputVcf = null;
+
+    @Argument(fullName = Mutect2.MUTECT_STATS_SHORT_NAME, doc="The Mutect stats file output by Mutect2", optional=true)
+    private final String statsTable = null;
+
+    @Argument(fullName = FILTERING_STATS_LONG_NAME, doc="The output filtering stats file", optional=true)
+    private final String filteringStatsOutput = null;
 
     @ArgumentCollection
     protected M2FiltersArgumentCollection MTFAC = new M2FiltersArgumentCollection();
@@ -105,7 +113,6 @@ public final class FilterMutectCalls extends MultiplePassVariantWalker {
 
     @Override
     public void onTraversalStart() {
-
         final VCFHeader inputHeader = getHeaderForVariants();
         final Set<VCFHeaderLine> headerLines = inputHeader.getMetaDataInSortedOrder().stream()
                 .filter(line -> !line.getKey().equals(FILTERING_STATUS_VCF_KEY)) //remove header line from Mutect2 stating that calls are unfiltered.
@@ -121,7 +128,14 @@ public final class FilterMutectCalls extends MultiplePassVariantWalker {
         vcfWriter.writeHeader(vcfHeader);
 
 
+        final File mutect2StatsTable = new File(statsTable == null ? drivingVariantFile + Mutect2.DEFAULT_STATS_EXTENSION : statsTable);
+
         filteringInfo = new Mutect2FilteringInfo(MTFAC, vcfHeader);
+        if (mutect2StatsTable.exists()) {
+            filteringInfo.inputMutectStats(mutect2StatsTable);
+        } else {
+            logger.warn("Mutect stats table " + mutect2StatsTable + " not found.  Filtering will proceed without this information.");
+        }
         filters = new ArrayList<>();
         filters.add(new TumorEvidenceFilter());
         filters.add(new BaseQualityFilter());
@@ -190,6 +204,7 @@ public final class FilterMutectCalls extends MultiplePassVariantWalker {
     protected void afterNthPass(final int n) {
         if (n == 0) {
             filteringInfo.learnPriorProbOfArtifactVersusVariant();
+            filteringInfo.learnPriorProbOfVariant();
             filters.forEach(f -> f.learnParameters());
         } else if (n == 1) {
             filteringInfo.adjustThreshold();
@@ -200,7 +215,9 @@ public final class FilterMutectCalls extends MultiplePassVariantWalker {
                             entry.getValue().getValue(), totalCalls, entry.getValue().getValue() / totalCalls))
                     .collect(Collectors.toList());
 
-            FilterStats.writeM2FilterSummary(filterStats, new File(outputVcf + FILTERING_STATS_EXTENSION));
+            final File filteringStatsFile = new File(filteringStatsOutput != null ? filteringStatsOutput : outputVcf + FILTERING_STATS_EXTENSION);
+
+            FilterStats.writeM2FilterSummary(filterStats, filteringStatsFile);
         } else {
             throw new GATKException.ShouldNeverReachHereException("This three-pass walker should never reach (zero-indexed) pass " + n);
         }

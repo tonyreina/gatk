@@ -10,6 +10,7 @@ import htsjdk.variant.vcf.VCFConstants;
 import htsjdk.variant.vcf.VCFHeader;
 import htsjdk.variant.vcf.VCFHeaderLine;
 import htsjdk.variant.vcf.VCFStandardHeaderLines;
+import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.commons.math3.special.Beta;
 import org.apache.commons.math3.special.Gamma;
 import org.apache.commons.math3.util.FastMath;
@@ -49,6 +50,7 @@ import org.broadinstitute.hellbender.utils.smithwaterman.SmithWatermanAligner;
 import org.broadinstitute.hellbender.utils.variant.GATKVCFConstants;
 import org.broadinstitute.hellbender.utils.variant.GATKVCFHeaderLines;
 
+import java.io.File;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -78,6 +80,8 @@ public final class Mutect2Engine implements AssemblyRegionEvaluator {
 
     private M2ArgumentCollection MTAC;
     private SAMFileHeader header;
+    private final int minCallableDepth;
+    public static final String CALLABLE_SITES_NAME = "callable";
 
     private static final int MIN_READ_LENGTH = 30;
     private static final int READ_QUALITY_FILTER_THRESHOLD = 20;
@@ -96,6 +100,8 @@ public final class Mutect2Engine implements AssemblyRegionEvaluator {
     private AssemblyRegionTrimmer trimmer = new AssemblyRegionTrimmer();
     private SomaticReferenceConfidenceModel referenceConfidenceModel = null;
 
+    private final MutableInt callableSites = new MutableInt(0);
+
     /**
      * Create and initialize a new HaplotypeCallerEngine given a collection of HaplotypeCaller arguments, a reads header,
      * and a reference file
@@ -110,6 +116,7 @@ public final class Mutect2Engine implements AssemblyRegionEvaluator {
     public Mutect2Engine(final M2ArgumentCollection MTAC, final boolean createBamOutIndex, final boolean createBamOutMD5, final SAMFileHeader header, final String reference, final VariantAnnotatorEngine annotatorEngine) {
         this.MTAC = Utils.nonNull(MTAC);
         this.header = Utils.nonNull(header);
+        minCallableDepth = MTAC.callableDepth;
         referenceReader = AssemblyBasedCallerUtils.createReferenceReader(Utils.nonNull(reference));
         aligner = SmithWatermanAligner.getAligner(MTAC.smithWatermanImplementation);
         samplesList = new IndexedSampleList(new ArrayList<>(ReadUtils.getSamplesFromHeader(header)));
@@ -300,6 +307,11 @@ public final class Mutect2Engine implements AssemblyRegionEvaluator {
         return AssemblyBasedCallerUtils.splitReadsBySample(samplesList, header, reads);
     }
 
+    public void writeMutectStats(final File statsTable) {
+        final List<MutectStats> stats = Arrays.asList(new MutectStats(CALLABLE_SITES_NAME, callableSites.getValue()));
+        MutectStats.writeToFile(stats, statsTable);
+    }
+
     public void shutdown() {
         likelihoodCalculationEngine.close();
         aligner.close();
@@ -325,6 +337,9 @@ public final class Mutect2Engine implements AssemblyRegionEvaluator {
         }
 
         final ReadPileup pileup = context.getBasePileup();
+        if (pileup.size() >= minCallableDepth) {
+            callableSites.increment();
+        }
         final ReadPileup tumorPileup = pileup.makeFilteredPileup(pe -> isTumorSample(ReadUtils.getSampleName(pe.getRead(), header)));
         final List<Byte> tumorAltQuals = altQuals(tumorPileup, refBase, MTAC.initialPCRErrorQual);
         final double tumorLog10Odds = MathUtils.logToLog10(lnLikelihoodRatio(tumorPileup.size() - tumorAltQuals.size(), tumorAltQuals));

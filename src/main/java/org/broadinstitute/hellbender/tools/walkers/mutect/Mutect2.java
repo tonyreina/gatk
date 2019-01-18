@@ -129,12 +129,17 @@ import java.util.List;
  )
 @DocumentedFeature
 public final class Mutect2 extends AssemblyRegionWalker {
+     public static final String MUTECT_STATS_SHORT_NAME = "stats";
+     public static final String DEFAULT_STATS_EXTENSION = ".stats";
 
     @ArgumentCollection
     protected M2ArgumentCollection MTAC = new M2ArgumentCollection();
 
     @Argument(fullName = StandardArgumentDefinitions.OUTPUT_LONG_NAME, shortName = StandardArgumentDefinitions.OUTPUT_SHORT_NAME, doc = "File to which variants should be written")
     public File outputVCF;
+
+    @Argument(shortName = MUTECT_STATS_SHORT_NAME, doc = "Output statistics table", optional = true)
+    public String statsTable = null;
 
     private VariantContextWriter vcfWriter;
 
@@ -225,6 +230,8 @@ public final class Mutect2 extends AssemblyRegionWalker {
 
     @Override
     public Object onTraversalSuccess() {
+        m2Engine.writeMutectStats(new File(statsTable == null ? outputVCF + DEFAULT_STATS_EXTENSION : statsTable));
+
         return "SUCCESS";
     }
 

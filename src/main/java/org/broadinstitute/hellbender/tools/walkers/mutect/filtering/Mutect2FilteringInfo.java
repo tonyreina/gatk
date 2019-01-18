@@ -12,9 +12,11 @@ import org.broadinstitute.hellbender.exceptions.GATKException;
 import org.broadinstitute.hellbender.tools.walkers.contamination.ContaminationRecord;
 import org.broadinstitute.hellbender.tools.walkers.contamination.MinorAlleleFractionRecord;
 import org.broadinstitute.hellbender.tools.walkers.mutect.Mutect2Engine;
+import org.broadinstitute.hellbender.tools.walkers.mutect.MutectStats;
 import org.broadinstitute.hellbender.utils.param.ParamUtils;
 import org.broadinstitute.hellbender.utils.variant.GATKVCFConstants;
 
+import java.io.File;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -38,6 +40,8 @@ public class Mutect2FilteringInfo {
 
     private final MutableDouble realVariantCount = new MutableDouble(0);
     private final MutableDouble technicalArtifactCount = new MutableDouble(0);
+
+    private OptionalLong totalCallableSites = OptionalLong.empty();
 
     // for each PID, the positions with PGTs of filtered genotypes
     private final Map<String, ImmutablePair<Integer, Set<String>>> filteredPhasedCalls;
@@ -71,6 +75,13 @@ public class Mutect2FilteringInfo {
         log10PriorOfSomaticVariant = MTFAC.log10PriorProbOfSomaticEvent;
 
         priorProbOfArtifactVersusVariant = MTFAC.initialPriorOfArtifactVersusVariant;
+    }
+
+    public void inputMutectStats(final File mutectStatsTable) {
+        final Map<String, Double> stats = MutectStats.readFromFile(mutectStatsTable).stream()
+                .collect(Collectors.toMap(MutectStats::getStatistic, MutectStats::getValue));
+
+        totalCallableSites = OptionalLong.of(Math.round(stats.get(Mutect2Engine.CALLABLE_SITES_NAME)));
     }
 
     public M2FiltersArgumentCollection getMTFAC() {
@@ -123,6 +134,12 @@ public class Mutect2FilteringInfo {
 
     public void learnPriorProbOfArtifactVersusVariant() {
         priorProbOfArtifactVersusVariant = (technicalArtifactCount.getValue() + 1) / (realVariantCount.getValue() + technicalArtifactCount.getValue() + 2);
+    }
+
+    public void learnPriorProbOfVariant() {
+        if (totalCallableSites.isPresent()) {
+            log10PriorOfSomaticVariant = Math.log10(realVariantCount.getValue() / totalCallableSites.getAsLong());
+        }
     }
 
     public void adjustThreshold() {
