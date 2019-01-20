@@ -13,7 +13,7 @@ public class TumorEvidenceFilter extends Mutect2VariantFilter {
     @Override
     public double calculateArtifactProbability(final VariantContext vc, final Mutect2FilteringInfo filteringInfo) {
         final double[] tumorLods = GATKProtectedVariantContextUtils.getAttributeAsDoubleArray(vc, GATKVCFConstants.TUMOR_LOD_KEY);
-        return posteriorProbabilityOfError(MathUtils.arrayMax(tumorLods), filteringInfo.getLog10PriorOfSomaticVariant());
+        return posteriorProbabilityOfError(MathUtils.arrayMax(tumorLods), filteringInfo.getLog10PriorOfSomaticVariant(vc));
     }
 
     // a lack of evidence means that the model of independent reads with error rates given by the base qualities explains

@@ -127,7 +127,8 @@ public class M2FiltersArgumentCollection {
     /**
      * Parameters
      */
-    public static final String LOG_10_PRIOR_OF_VARIANT_LONG_NAME = "log10-somatic-prior";
+    public static final String LOG_10_PRIOR_OF_SNV_LONG_NAME = "log10-somatic-snv-prior";
+    public static final String LOG_10_PRIOR_OF_INDEL_LONG_NAME = "log10-somatic-indel-prior";
     public static final String INITIAL_PRIOR_OF_ARTIFACT_VERSUS_VARIANT_LONG_NAME = "initial-artifact-prior";
     public static final String NORMAL_P_VALUE_THRESHOLD_LONG_NAME = "normal-p-value-threshold";
     public static final String MIN_POLYMERASE_SLIPPAGE_LENGTH = "min-slippage-length";
@@ -135,7 +136,8 @@ public class M2FiltersArgumentCollection {
     public static final String MAX_DISTANCE_TO_FILTERED_CALL_ON_SAME_HAPLOTYPE_LONG_NAME = "distance-on-haplotype";
     public static final String LONG_INDEL_LENGTH_LONG_NAME = "long-indel-length";
 
-    private static final double DEFAULT_LOG_10_PRIOR_OF_VARIANT = -6.0;
+    private static final double DEFAULT_LOG_10_PRIOR_OF_SNV = -6.0;
+    private static final double DEFAULT_LOG_10_PRIOR_OF_INDEL = -7.0;
     private static final double DEFAULT_INITIAL_PRIOR_OF_ARTIFACT_VERSUS_VARIANT = 0.9;
     private static final double DEFAULT_NORMAL_P_VALUE_THRESHOLD = 0.001;
     private static final int DEFAULT_MIN_SLIPPAGE_LENGTH = 8;
@@ -143,8 +145,11 @@ public class M2FiltersArgumentCollection {
     private static final int DEFAULT_MAX_INTRA_HAPLOTYPE_DISTANCE = 100;
     private static final int DEFAULT_LONG_INDEL_SIZE = 5;
 
-    @Argument(fullName= LOG_10_PRIOR_OF_VARIANT_LONG_NAME, doc="Log10 prior probability that a site has a somatic variant", optional = true)
-    public double log10PriorProbOfSomaticEvent = DEFAULT_LOG_10_PRIOR_OF_VARIANT;
+    @Argument(fullName= LOG_10_PRIOR_OF_SNV_LONG_NAME, doc="Log10 prior probability that a site has a somatic SNV", optional = true)
+    public double log10PriorProbOfSomaticSNV = DEFAULT_LOG_10_PRIOR_OF_SNV;
+
+    @Argument(fullName= LOG_10_PRIOR_OF_INDEL_LONG_NAME, doc="Log10 prior probability that a site has a somatic indel", optional = true)
+    public double log10PriorProbOfSomaticIndel = DEFAULT_LOG_10_PRIOR_OF_INDEL;
 
     @Argument(fullName= INITIAL_PRIOR_OF_ARTIFACT_VERSUS_VARIANT_LONG_NAME, doc="Initial guess for prior probability that a called site is actually an artifact", optional = true)
     public double initialPriorOfArtifactVersusVariant = DEFAULT_INITIAL_PRIOR_OF_ARTIFACT_VERSUS_VARIANT;

@@ -16,7 +16,7 @@ import java.util.Optional;
 public class ContaminationFilter extends Mutect2VariantFilter {
     @Override
     public double calculateArtifactProbability(final VariantContext vc, final Mutect2FilteringInfo filteringInfo) {
-        final double somaticPriorProb = Math.pow(10, filteringInfo.getMTFAC().log10PriorProbOfSomaticEvent);
+        final double somaticPriorProb = Math.pow(10, filteringInfo.getLog10PriorOfSomaticVariant(vc));
         final List<ImmutablePair<Integer, Double>> depthsAndPosteriors = new ArrayList<>();
 
         for (final Genotype tumorGenotype : vc.getGenotypes()) {

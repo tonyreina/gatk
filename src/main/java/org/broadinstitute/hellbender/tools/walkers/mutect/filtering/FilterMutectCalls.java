@@ -196,7 +196,7 @@ public final class FilterMutectCalls extends MultiplePassVariantWalker {
 
             final Pair<Double, Double> overallAndTechnicalArtifactProbs = overallAndTechnicalOnlyArtifactProbabilities(variant, filteringInfo);
 
-            filteringInfo.addRealVariantCount(1 - overallAndTechnicalArtifactProbs.getLeft());
+            filteringInfo.addRealVariantCount(1 - overallAndTechnicalArtifactProbs.getLeft(), variant.isSNP());
             filteringInfo.addTechnicalArtifactCount(overallAndTechnicalArtifactProbs.getRight());
 
             // TODO: if real variant probability is significant, send allele fraction info the filteringInfo

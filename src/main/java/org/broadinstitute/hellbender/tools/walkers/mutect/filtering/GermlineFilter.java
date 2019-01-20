@@ -71,7 +71,7 @@ public class GermlineFilter extends Mutect2VariantFilter {
         final double[] log10OddsOfGermlineHomAltVsSomatic = MathUtils.applyToArray(altAlleleFractions, x-> x < MIN_ALLELE_FRACTION_FOR_GERMLINE_HOM_ALT ? Double.NEGATIVE_INFINITY : 0);
 
         final double[] log10GermlinePosteriors = GermlineProbabilityCalculator.calculateGermlineProbabilities(
-                populationAlleleFrequencies, log10OddsOfGermlineHetVsSomatic, log10OddsOfGermlineHomAltVsSomatic, normalLods, filteringInfo.getMTFAC().log10PriorProbOfSomaticEvent);
+                populationAlleleFrequencies, log10OddsOfGermlineHetVsSomatic, log10OddsOfGermlineHomAltVsSomatic, normalLods, filteringInfo.getMTFAC().log10PriorProbOfSomaticSNV);
 
         final int indexOfMaxTumorLod = MathUtils.maxElementIndex(tumorLog10OddsIfSomatic);
         return Math.pow(10.0, log10GermlinePosteriors[indexOfMaxTumorLod]);

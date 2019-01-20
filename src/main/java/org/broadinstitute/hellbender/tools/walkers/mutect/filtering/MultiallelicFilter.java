@@ -14,7 +14,7 @@ public class MultiallelicFilter extends HardFilter {
         final double[] tumorLods = GATKProtectedVariantContextUtils.getAttributeAsDoubleArray(vc, GATKVCFConstants.TUMOR_LOD_KEY);
 
         final long numPassingAltAlleles = Arrays.stream(tumorLods)
-                .map(lod -> posteriorProbabilityOfError(lod, filteringInfo.getLog10PriorOfSomaticVariant()))
+                .map(lod -> posteriorProbabilityOfError(lod, filteringInfo.getLog10PriorOfSomaticVariant(vc)))
                 .filter(prob -> prob < filteringInfo.getArtifactProbabilityThreshold())
                 .count();
 

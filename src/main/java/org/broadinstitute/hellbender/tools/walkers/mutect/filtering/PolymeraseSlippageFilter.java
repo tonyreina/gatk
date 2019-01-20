@@ -44,7 +44,7 @@ public class PolymeraseSlippageFilter extends Mutect2VariantFilter {
                 likelihoodGivenSlippageArtifact = new BinomialDistribution(null, depth, filteringInfo.getMTFAC().slippageRate).probability(ADs[1]);
             }
 
-            return posteriorProbabilityOfError(Math.log10(likelihoodGivenRealVariant/likelihoodGivenSlippageArtifact), filteringInfo.getMTFAC().log10PriorProbOfSomaticEvent);
+            return posteriorProbabilityOfError(Math.log10(likelihoodGivenRealVariant/likelihoodGivenSlippageArtifact), filteringInfo.getMTFAC().log10PriorProbOfSomaticSNV);
         } else {
             return 0;
         }

@@ -13,6 +13,7 @@ import org.broadinstitute.hellbender.tools.walkers.contamination.ContaminationRe
 import org.broadinstitute.hellbender.tools.walkers.contamination.MinorAlleleFractionRecord;
 import org.broadinstitute.hellbender.tools.walkers.mutect.Mutect2Engine;
 import org.broadinstitute.hellbender.tools.walkers.mutect.MutectStats;
+import org.broadinstitute.hellbender.utils.MathUtils;
 import org.broadinstitute.hellbender.utils.param.ParamUtils;
 import org.broadinstitute.hellbender.utils.variant.GATKVCFConstants;
 
@@ -34,11 +35,14 @@ public class Mutect2FilteringInfo {
 
     private double artifactProbabilityThreshold = FIRST_PASS_THRESHOLD;
 
-    private double log10PriorOfSomaticVariant;
+    private double log10PriorOfSomaticSNV;
+    private double log10PriorOfSomaticIndel;
 
     private double priorProbOfArtifactVersusVariant;
 
     private final MutableDouble realVariantCount = new MutableDouble(0);
+    private final MutableDouble realSNVCount = new MutableDouble(0);
+    private final MutableDouble realIndelCount = new MutableDouble(0);
     private final MutableDouble technicalArtifactCount = new MutableDouble(0);
 
     private OptionalLong totalCallableSites = OptionalLong.empty();
@@ -72,7 +76,8 @@ public class Mutect2FilteringInfo {
 
         filteredPhasedCalls = new HashMap<>();
 
-        log10PriorOfSomaticVariant = MTFAC.log10PriorProbOfSomaticEvent;
+        log10PriorOfSomaticSNV = MTFAC.log10PriorProbOfSomaticSNV;
+        log10PriorOfSomaticIndel = MTFAC.log10PriorProbOfSomaticIndel;
 
         priorProbOfArtifactVersusVariant = MTFAC.initialPriorOfArtifactVersusVariant;
     }
@@ -108,7 +113,9 @@ public class Mutect2FilteringInfo {
         return artifactProbabilityThreshold;
     }
 
-    public double getLog10PriorOfSomaticVariant() { return log10PriorOfSomaticVariant; }
+    public double getLog10PriorOfSomaticVariant(final VariantContext vc) {
+        return vc.isSNP() ? (MathUtils.LOG10_ONE_THIRD + log10PriorOfSomaticSNV) : log10PriorOfSomaticIndel;
+    }
 
     public double getPriorProbOfArtifactVersusVariant() { return priorProbOfArtifactVersusVariant; }
 
@@ -128,7 +135,10 @@ public class Mutect2FilteringInfo {
         firstPassArtifactProbabilities.add(prob);
     }
 
-    public void addRealVariantCount(final double x) { realVariantCount.add(x); }
+    public void addRealVariantCount(final double x, final boolean isSNV) {
+        realVariantCount.add(x);
+        (isSNV ? realSNVCount : realIndelCount).add(x);
+    }
 
     public void addTechnicalArtifactCount(final double x) { technicalArtifactCount.add(x); }
 
@@ -138,7 +148,8 @@ public class Mutect2FilteringInfo {
 
     public void learnPriorProbOfVariant() {
         if (totalCallableSites.isPresent()) {
-            log10PriorOfSomaticVariant = Math.log10(realVariantCount.getValue() / totalCallableSites.getAsLong());
+            log10PriorOfSomaticSNV = Math.log10(realSNVCount.getValue() / totalCallableSites.getAsLong());
+            log10PriorOfSomaticIndel = Math.log10(realIndelCount.getValue() / totalCallableSites.getAsLong());
         }
     }
 
