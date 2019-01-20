@@ -14,6 +14,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.DoubleUnaryOperator;
+import java.util.stream.Collectors;
 
 public class StrandArtifactFilter extends Mutect2VariantFilter {
     // beta prior on strand bias allele fraction
@@ -70,17 +71,20 @@ public class StrandArtifactFilter extends Mutect2VariantFilter {
 
     @Override
     protected void learnParameters() {
-        final double totalArtifacts = uncertainESteps.stream().mapToDouble(EStep::getArtifactProbability).sum();
+
+        final List<EStep> potentialArtifacts = uncertainESteps.stream()
+                .filter(eStep -> eStep.getArtifactProbability() > 0.1).collect(Collectors.toList());
+        final double totalArtifacts = potentialArtifacts.stream().mapToDouble(EStep::getArtifactProbability).sum();
         final double totalNonArtifacts = uncertainESteps.stream().mapToDouble(e -> 1 - e.getArtifactProbability()).sum()
                 + definiteNonArtifactCount.getValue();
         strandArtifactPrior = (totalArtifacts + ARTIFACT_PSEUDOCOUNT) / (totalNonArtifacts + NON_ARTIFACT_PSEUDOCOUNT);
 
 
-        final double artifactAltCount = uncertainESteps.stream()
+        final double artifactAltCount = potentialArtifacts.stream()
                 .mapToDouble(e -> e.forwardArtifactProbability * e.forwardAltCount + e.reverseArtifactProbability * e.reverseAltCount)
                 .sum();
 
-        final double artifactDepth = uncertainESteps.stream()
+        final double artifactDepth = potentialArtifacts.stream()
                 .mapToDouble(e -> e.forwardArtifactProbability * e.forwardCount + e.reverseArtifactProbability * e.reverseCount)
                 .sum();
 
@@ -92,7 +96,7 @@ public class StrandArtifactFilter extends Mutect2VariantFilter {
         // brute force optimization is fairly cheap because the objective includes only calls that show some evidence of strand bias.
         final DoubleUnaryOperator objective = alpha -> {
             final double beta = (1 / artifactBetaMean - 1) * alpha;
-            return uncertainESteps.stream()
+            return potentialArtifacts.stream()
                     .mapToDouble( e -> e.getForwardArtifactProbability() * artifactStrandLogLikelihood(e.forwardCount, e.forwardAltCount, alpha, beta)
                             + e.getReverseArtifactProbability() * artifactStrandLogLikelihood(e.reverseCount, e.reverseAltCount, alpha, beta))
                     .sum();
