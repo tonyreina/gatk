@@ -24,8 +24,8 @@ public class StrandArtifactFilter extends Mutect2VariantFilter {
     private double betaStrand = INITIAL_BETA_STRAND;
 
     // beta prior on sequencing error allele fraction
-    private static final double ALPHA_SEQ = 1;
-    private static final double BETA_SEQ = 100;
+    private static final double ALPHA_SEQ = 10;
+    private static final double BETA_SEQ = 2000;
 
     private static final double DEFINITE_NON_ARTIFACT_THRESHOLD = 0.001;
 
