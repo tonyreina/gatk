@@ -187,11 +187,9 @@ public class Mutect2FilteringInfo {
 
     public void addTechnicalArtifactCount(final double x) { technicalArtifactCount.add(x); }
 
-    public void learnPriorProbOfArtifactVersusVariant() {
-        priorProbOfArtifactVersusVariant = (technicalArtifactCount.getValue() + 1) / (realVariantCount.getValue() + technicalArtifactCount.getValue() + 2);
-    }
 
-    public void learnPriorProbOfVariant() {
+    public void learnVariantAndArtifactPriors() {
+        priorProbOfArtifactVersusVariant = (technicalArtifactCount.getValue() + 1) / (realVariantCount.getValue() + technicalArtifactCount.getValue() + 2);
         if (totalCallableSites.isPresent()) {
             log10PriorOfSomaticSNV = Math.log10(realSNVCount.getValue() / totalCallableSites.getAsLong());
             log10PriorOfSomaticIndel = Math.log10(realIndelCount.getValue() / totalCallableSites.getAsLong());

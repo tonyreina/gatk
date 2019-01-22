@@ -132,10 +132,14 @@ public final class FilterMutectCalls extends MultiplePassVariantWalker {
                                 final FeatureContext featureContext,
                                 final int n) {
         if (n == 0) {
+            // TODO: unify thee methods.  In fat, maybe unify all the accumulate methods and on each pass do all the things
+            // TODO: it would be simpler and only marginally wasteful
             filteringInfo.accumulateDataForLearning(variant);
             filteringInfo.accumulateRealAndArtifactCounts(variant);
             // TODO: send allele fraction info the filteringInfo
         } else if (n == 1) {
+            // TODO: could bad haplotypes just be a state of the BadHaplotypeFilter?
+            // TODO: could it even be probabilistic based on the artifact probability of the worst call on same haplotype?
             filteringInfo.accumulateArtifactPosteriorsAndBadHaplotypes(variant);
         } else if (n == 2) {
             vcfWriter.add(filteringInfo.makeFilteredVariant(variant));
@@ -147,8 +151,7 @@ public final class FilterMutectCalls extends MultiplePassVariantWalker {
     @Override
     protected void afterNthPass(final int n) {
         if (n == 0) {
-            filteringInfo.learnPriorProbOfArtifactVersusVariant();
-            filteringInfo.learnPriorProbOfVariant();
+            filteringInfo.learnVariantAndArtifactPriors();
             filteringInfo.learnFilterParameters();
         } else if (n == 1) {
             filteringInfo.adjustThreshold();
