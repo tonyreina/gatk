@@ -1,12 +1,9 @@
 package org.broadinstitute.hellbender.tools.walkers.mutect.filtering;
 
 import htsjdk.variant.variantcontext.VariantContext;
-import htsjdk.variant.variantcontext.VariantContextBuilder;
 import htsjdk.variant.variantcontext.writer.VariantContextWriter;
 import htsjdk.variant.vcf.VCFHeader;
 import htsjdk.variant.vcf.VCFHeaderLine;
-import org.apache.commons.lang3.mutable.MutableDouble;
-import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.broadinstitute.barclay.argparser.Argument;
@@ -17,8 +14,6 @@ import org.broadinstitute.hellbender.cmdline.StandardArgumentDefinitions;
 import org.broadinstitute.hellbender.engine.*;
 import org.broadinstitute.hellbender.exceptions.GATKException;
 import org.broadinstitute.hellbender.tools.walkers.mutect.Mutect2;
-import org.broadinstitute.hellbender.utils.MathUtils;
-import org.broadinstitute.hellbender.utils.QualityUtils;
 import picard.cmdline.programgroups.VariantFilteringProgramGroup;
 import org.broadinstitute.hellbender.engine.FeatureContext;
 import org.broadinstitute.hellbender.engine.ReadsContext;
@@ -79,8 +74,6 @@ public final class FilterMutectCalls extends MultiplePassVariantWalker {
 
     public static final String FILTERING_STATS_LONG_NAME = "filtering-stats";
 
-    private static final double EPSILON = 1.0e-10;
-
     public static final String FILTERING_STATUS_VCF_KEY = "filtering_status";
 
     public static final String FILTERING_STATS_EXTENSION = ".filteringStats.tsv";
@@ -100,19 +93,7 @@ public final class FilterMutectCalls extends MultiplePassVariantWalker {
 
     private VariantContextWriter vcfWriter;
 
-    private List<Mutect2VariantFilter> filters;
-
     private Mutect2FilteringInfo filteringInfo;
-
-    private Map<String, MutableDouble> expectedFalsePositivesPerFilter = new HashMap<>();
-    private Map<String, MutableDouble> expectedFalseNegativesPerFilter = new HashMap<>();
-    private final MutableDouble expectedFalsePositives = new MutableDouble(0);
-    private final MutableDouble expectedTruePositives = new MutableDouble(0);
-    private final MutableDouble expectedFalseNegatives = new MutableDouble(0);
-
-    private MutableInt passingVariants = new MutableInt(0);
-
-    private Map<String, String> filterPhredPosteriorAnnotations = new HashMap<>();
 
     @Override
     protected int numberOfPasses() { return 3; }
@@ -142,38 +123,6 @@ public final class FilterMutectCalls extends MultiplePassVariantWalker {
         } else {
             logger.warn("Mutect stats table " + mutect2StatsTable + " not found.  Filtering will proceed without this information.");
         }
-        filters = new ArrayList<>();
-        filters.add(new TumorEvidenceFilter());
-        filters.add(new BaseQualityFilter());
-        filters.add(new MappingQualityFilter());
-        filters.add(new DuplicatedAltReadFilter());
-        filters.add(new StrandArtifactFilter());
-        filters.add(new ContaminationFilter());
-        filters.add(new PanelOfNormalsFilter());
-        filters.add(new NormalArtifactFilter());
-        filters.add(new ReadOrientationFilter());
-        filters.add(new NRatioFilter());
-        filters.add(new StrictStrandBiasFilter());
-        filters.add(new ReadPositionFilter());
-
-        if (MTFAC.mitochondria) {
-            filters.add(new LogOddsOverDepthFilter());
-            filters.add(new ChimericOriginalAlignmentFilter());
-        } else {
-            filters.add(new ClusteredEventsFilter());
-            filters.add(new MultiallelicFilter());
-            filters.add(new FragmentLengthFilter());
-            filters.add(new PolymeraseSlippageFilter());
-            filters.add(new FilteredHaplotypeFilter());
-            filters.add(new GermlineFilter());
-        }
-
-        filters.forEach(filter -> expectedFalsePositivesPerFilter.put(filter.filterName(), new MutableDouble(0)));
-        filters.forEach(filter -> expectedFalseNegativesPerFilter.put(filter.filterName(), new MutableDouble(0)));
-
-        for (final Mutect2VariantFilter filter : filters) {
-            filter.phredScaledPosteriorAnnotationName().ifPresent(ann -> filterPhredPosteriorAnnotations.put(filter.filterName(), ann));
-        }
     }
 
     @Override
@@ -183,27 +132,13 @@ public final class FilterMutectCalls extends MultiplePassVariantWalker {
                                 final FeatureContext featureContext,
                                 final int n) {
         if (n == 0) {
-            filters.forEach(f -> f.accumulateDataForLearning(variant, filteringInfo));
-
-            double artifactProbability = 0;
-            double technicalArtifactProbability = 0;
-
-            for (final Mutect2VariantFilter filter : filters) {
-                final double prob = filter.artifactProbability(variant, filteringInfo);
-                artifactProbability = Math.max(artifactProbability, prob);
-                technicalArtifactProbability = filter.isTechnicalArtifact() ? Math.max(technicalArtifactProbability, prob) : technicalArtifactProbability;
-            }
-
-            final Pair<Double, Double> overallAndTechnicalArtifactProbs = overallAndTechnicalOnlyArtifactProbabilities(variant, filteringInfo);
-
-            filteringInfo.addRealVariantCount(1 - overallAndTechnicalArtifactProbs.getLeft(), variant.isSNP());
-            filteringInfo.addTechnicalArtifactCount(overallAndTechnicalArtifactProbs.getRight());
-
-            // TODO: if real variant probability is significant, send allele fraction info the filteringInfo
+            filteringInfo.accumulateDataForLearning(variant);
+            filteringInfo.accumulateRealAndArtifactCounts(variant);
+            // TODO: send allele fraction info the filteringInfo
         } else if (n == 1) {
-            secondPassOptimizeThresholdApply(variant, readsContext, referenceContext, featureContext);
+            filteringInfo.accumulateArtifactPosteriorsAndBadHaplotypes(variant);
         } else if (n == 2) {
-            thirdPassMakeFilteringCallsApply(variant, readsContext, referenceContext, featureContext);
+            vcfWriter.add(filteringInfo.makeFilteredVariant(variant));
         } else {
             throw new GATKException.ShouldNeverReachHereException("This two-pass walker should never reach (zero-indexed) pass " + n);
         }
@@ -214,96 +149,15 @@ public final class FilterMutectCalls extends MultiplePassVariantWalker {
         if (n == 0) {
             filteringInfo.learnPriorProbOfArtifactVersusVariant();
             filteringInfo.learnPriorProbOfVariant();
-            filters.forEach(f -> f.learnParameters());
+            filteringInfo.learnFilterParameters();
         } else if (n == 1) {
             filteringInfo.adjustThreshold();
         } else if (n == 2) {
-            final int totalCalls = passingVariants.getValue();
-            final List<FilterStats> filterStats = filters.stream().map(Mutect2VariantFilter::filterName)
-                    .map(filter -> {
-                        final double falseNegatives = expectedFalseNegativesPerFilter.get(filter).getValue();
-                        final double falsePositives = expectedFalsePositivesPerFilter.get(filter).getValue();
-                        final double fdr = falsePositives / totalCalls;
-                        final double totalTrueVariants = expectedTruePositives.getValue() + expectedFalseNegatives.getValue();
-
-                        return new FilterStats(filter, falsePositives, fdr, falseNegatives, falseNegatives / totalTrueVariants);
-                    })
-                    .filter(stats -> stats.getFalsePositiveCount() > 0 || stats.getFalseNegativeCount() > 0)
-                    .collect(Collectors.toList());
-
             final File filteringStatsFile = new File(filteringStatsOutput != null ? filteringStatsOutput : outputVcf + FILTERING_STATS_EXTENSION);
-
-            FilterStats.writeM2FilterSummary(filterStats, filteringStatsFile, filteringInfo.getArtifactProbabilityThreshold(), totalCalls,
-                    expectedTruePositives.getValue(), expectedFalsePositives.getValue(), expectedFalseNegatives.getValue());
+            filteringInfo.writeFilteringStats(filteringStatsFile);
         } else {
             throw new GATKException.ShouldNeverReachHereException("This three-pass walker should never reach (zero-indexed) pass " + n);
         }
-    }
-
-    private void secondPassOptimizeThresholdApply(final VariantContext vc, final ReadsContext readsContext, final ReferenceContext refContext, final FeatureContext fc) {
-
-        final double artifactProbability = overallAndTechnicalOnlyArtifactProbabilities(vc, filteringInfo).getLeft();
-
-        if (artifactProbability > filteringInfo.getArtifactProbabilityThreshold() - EPSILON) {
-            filteringInfo.recordFilteredHaplotypes(vc);
-        }
-
-        filteringInfo.addFirstPassArtifactProbability(artifactProbability);
-    }
-
-    public void thirdPassMakeFilteringCallsApply(final VariantContext vc, final ReadsContext readsContext, final ReferenceContext refContext, final FeatureContext fc) {
-        final VariantContextBuilder vcb = new VariantContextBuilder(vc);
-        vcb.filters(new HashSet<>());
-
-        final Map<Mutect2VariantFilter, Double> artifactProbabilities = filters.stream()
-                .collect(Collectors.toMap(f -> f, f -> f.artifactProbability(vc, filteringInfo)));
-
-        final double overallArtifactProbability = overallAndTechnicalOnlyArtifactProbabilities(artifactProbabilities).getLeft();
-
-        final boolean filtered = overallArtifactProbability > filteringInfo.getArtifactProbabilityThreshold() - EPSILON;
-
-        if (filtered) {
-            expectedFalseNegatives.add(1 - overallArtifactProbability);
-        } else {
-            passingVariants.increment();
-            expectedFalsePositives.add(overallArtifactProbability);
-            expectedTruePositives.add(1 - overallArtifactProbability);
-        }
-
-        for (final Map.Entry<Mutect2VariantFilter, Double> entry : artifactProbabilities.entrySet()) {
-            final String filter = entry.getKey().filterName();
-            final double artifactProbability = entry.getValue();
-
-            final String posteriorAnnotation = filterPhredPosteriorAnnotations.get(filter);
-            if (posteriorAnnotation != null && entry.getKey().requiredAnnotations().stream().allMatch(vc::hasAttribute)) {
-                vcb.attribute(posteriorAnnotation, QualityUtils.errorProbToQual(artifactProbability));
-            }
-
-            if (artifactProbability > EPSILON && artifactProbability > filteringInfo.getArtifactProbabilityThreshold() - EPSILON) {
-                vcb.filter(filter);
-                expectedFalseNegativesPerFilter.get(filter).add(1 - overallArtifactProbability);
-            } else if (!filtered) {
-                expectedFalsePositivesPerFilter.get(filter).add(artifactProbability);
-            }
-        }
-
-        vcfWriter.add(vcb.make());
-    }
-
-    private Pair<Double, Double> overallAndTechnicalOnlyArtifactProbabilities(final VariantContext vc, final Mutect2FilteringInfo filteringInfo) {
-        return overallAndTechnicalOnlyArtifactProbabilities(filters.stream()
-                .collect(Collectors.toMap(f -> f, f -> f.calculateArtifactProbability(vc, filteringInfo))));
-    }
-
-    private Pair<Double, Double> overallAndTechnicalOnlyArtifactProbabilities(final Map<Mutect2VariantFilter, Double> map) {
-        final double technicalArtifactProbability = map.entrySet().stream().filter(entry -> entry.getKey().isTechnicalArtifact())
-                .mapToDouble(entry -> entry.getValue()).max().orElseGet(() -> 0);
-        final double nonTechnicalArtifactProbability = map.entrySet().stream().filter(entry -> !entry.getKey().isTechnicalArtifact())
-                .mapToDouble(entry -> entry.getValue()).max().orElseGet(() -> 0);
-
-        final double overallProbability = 1 - (1 - technicalArtifactProbability) * (1 - nonTechnicalArtifactProbability);
-
-        return ImmutablePair.of(overallProbability, technicalArtifactProbability);
     }
 
     @Override

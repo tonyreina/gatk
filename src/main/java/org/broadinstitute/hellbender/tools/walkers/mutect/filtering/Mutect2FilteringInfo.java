@@ -4,16 +4,20 @@ import com.google.common.annotations.VisibleForTesting;
 import htsjdk.samtools.util.OverlapDetector;
 import htsjdk.variant.variantcontext.Genotype;
 import htsjdk.variant.variantcontext.VariantContext;
+import htsjdk.variant.variantcontext.VariantContextBuilder;
 import htsjdk.variant.vcf.VCFHeader;
 import htsjdk.variant.vcf.VCFHeaderLine;
 import org.apache.commons.lang3.mutable.MutableDouble;
+import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 import org.broadinstitute.hellbender.exceptions.GATKException;
 import org.broadinstitute.hellbender.tools.walkers.contamination.ContaminationRecord;
 import org.broadinstitute.hellbender.tools.walkers.contamination.MinorAlleleFractionRecord;
 import org.broadinstitute.hellbender.tools.walkers.mutect.Mutect2Engine;
 import org.broadinstitute.hellbender.tools.walkers.mutect.MutectStats;
 import org.broadinstitute.hellbender.utils.MathUtils;
+import org.broadinstitute.hellbender.utils.QualityUtils;
 import org.broadinstitute.hellbender.utils.param.ParamUtils;
 import org.broadinstitute.hellbender.utils.variant.GATKVCFConstants;
 
@@ -27,6 +31,7 @@ import java.util.stream.Collectors;
  */
 public class Mutect2FilteringInfo {
     private static final double FIRST_PASS_THRESHOLD = 0.5;
+    private static final double EPSILON = 1.0e-10;
 
     private final M2FiltersArgumentCollection MTFAC;
     private final Set<String> normalSamples;
@@ -44,6 +49,17 @@ public class Mutect2FilteringInfo {
     private final MutableDouble realSNVCount = new MutableDouble(0);
     private final MutableDouble realIndelCount = new MutableDouble(0);
     private final MutableDouble technicalArtifactCount = new MutableDouble(0);
+
+
+
+    private List<Mutect2VariantFilter> filters;
+
+    private MutableInt passingVariants = new MutableInt(0);
+    private Map<String, MutableDouble> expectedFalsePositivesPerFilter = new HashMap<>();
+    private Map<String, MutableDouble> expectedFalseNegativesPerFilter = new HashMap<>();
+    private final MutableDouble expectedFalsePositives = new MutableDouble(0);
+    private final MutableDouble expectedTruePositives = new MutableDouble(0);
+    private final MutableDouble expectedFalseNegatives = new MutableDouble(0);
 
     private OptionalLong totalCallableSites = OptionalLong.empty();
 
@@ -80,6 +96,35 @@ public class Mutect2FilteringInfo {
         log10PriorOfSomaticIndel = MTFAC.log10PriorProbOfSomaticIndel;
 
         priorProbOfArtifactVersusVariant = MTFAC.initialPriorOfArtifactVersusVariant;
+
+        filters = new ArrayList<>();
+        filters.add(new TumorEvidenceFilter());
+        filters.add(new BaseQualityFilter());
+        filters.add(new MappingQualityFilter());
+        filters.add(new DuplicatedAltReadFilter());
+        filters.add(new StrandArtifactFilter());
+        filters.add(new ContaminationFilter());
+        filters.add(new PanelOfNormalsFilter());
+        filters.add(new NormalArtifactFilter());
+        filters.add(new ReadOrientationFilter());
+        filters.add(new NRatioFilter());
+        filters.add(new StrictStrandBiasFilter());
+        filters.add(new ReadPositionFilter());
+
+        if (MTFAC.mitochondria) {
+            filters.add(new LogOddsOverDepthFilter());
+            filters.add(new ChimericOriginalAlignmentFilter());
+        } else {
+            filters.add(new ClusteredEventsFilter());
+            filters.add(new MultiallelicFilter());
+            filters.add(new FragmentLengthFilter());
+            filters.add(new PolymeraseSlippageFilter());
+            filters.add(new FilteredHaplotypeFilter());
+            filters.add(new GermlineFilter());
+        }
+
+        filters.forEach(filter -> expectedFalsePositivesPerFilter.put(filter.filterName(), new MutableDouble(0)));
+        filters.forEach(filter -> expectedFalseNegativesPerFilter.put(filter.filterName(), new MutableDouble(0)));
     }
 
     public void inputMutectStats(final File mutectStatsTable) {
@@ -254,6 +299,114 @@ public class Mutect2FilteringInfo {
 
     public static boolean hasPhaseInfo(final Genotype genotype) {
         return genotype.hasExtendedAttribute(GATKVCFConstants.HAPLOTYPE_CALLER_PHASING_GT_KEY) && genotype.hasExtendedAttribute(GATKVCFConstants.HAPLOTYPE_CALLER_PHASING_ID_KEY);
+    }
+
+    public void accumulateDataForLearning(final VariantContext vc) {
+        filters.forEach(f -> f.accumulateDataForLearning(vc, this));
+    }
+
+    public void accumulateRealAndArtifactCounts(final VariantContext vc) {
+        double artifactProbability = 0;
+        double technicalArtifactProbability = 0;
+
+        for (final Mutect2VariantFilter filter : filters) {
+            final double prob = filter.artifactProbability(vc, this);
+            artifactProbability = Math.max(artifactProbability, prob);
+            technicalArtifactProbability = filter.isTechnicalArtifact() ? Math.max(technicalArtifactProbability, prob) : technicalArtifactProbability;
+        }
+
+        final Pair<Double, Double> overallAndTechnicalArtifactProbs = overallAndTechnicalOnlyArtifactProbabilities(vc);
+
+        addRealVariantCount(1 - overallAndTechnicalArtifactProbs.getLeft(), vc.isSNP());
+        addTechnicalArtifactCount(overallAndTechnicalArtifactProbs.getRight());
+    }
+
+    // TODO: dupes from FilteRMutectCalls
+    private Pair<Double, Double> overallAndTechnicalOnlyArtifactProbabilities(final VariantContext vc) {
+        return overallAndTechnicalOnlyArtifactProbabilities(filters.stream()
+                .collect(Collectors.toMap(f -> f, f -> f.calculateArtifactProbability(vc, this))));
+    }
+
+    private Pair<Double, Double> overallAndTechnicalOnlyArtifactProbabilities(final Map<Mutect2VariantFilter, Double> map) {
+        final double technicalArtifactProbability = map.entrySet().stream().filter(entry -> entry.getKey().isTechnicalArtifact())
+                .mapToDouble(entry -> entry.getValue()).max().orElseGet(() -> 0);
+        final double nonTechnicalArtifactProbability = map.entrySet().stream().filter(entry -> !entry.getKey().isTechnicalArtifact())
+                .mapToDouble(entry -> entry.getValue()).max().orElseGet(() -> 0);
+
+        final double overallProbability = 1 - (1 - technicalArtifactProbability) * (1 - nonTechnicalArtifactProbability);
+
+        return ImmutablePair.of(overallProbability, technicalArtifactProbability);
+    }
+
+    public void learnFilterParameters() {
+        filters.forEach(f -> f.learnParameters());
+    }
+
+    public void writeFilteringStats(final File filteringStatsFile) {
+        final int totalCalls = passingVariants.getValue();
+        final List<FilterStats> filterStats = filters.stream().map(Mutect2VariantFilter::filterName)
+                .map(filter -> {
+                    final double falseNegatives = expectedFalseNegativesPerFilter.get(filter).getValue();
+                    final double falsePositives = expectedFalsePositivesPerFilter.get(filter).getValue();
+                    final double fdr = falsePositives / totalCalls;
+                    final double totalTrueVariants = expectedTruePositives.getValue() + expectedFalseNegatives.getValue();
+
+                    return new FilterStats(filter, falsePositives, fdr, falseNegatives, falseNegatives / totalTrueVariants);
+                })
+                .filter(stats -> stats.getFalsePositiveCount() > 0 || stats.getFalseNegativeCount() > 0)
+                .collect(Collectors.toList());
+
+
+        FilterStats.writeM2FilterSummary(filterStats, filteringStatsFile, getArtifactProbabilityThreshold(), totalCalls,
+                expectedTruePositives.getValue(), expectedFalsePositives.getValue(), expectedFalseNegatives.getValue());
+    }
+
+    public VariantContext makeFilteredVariant(final VariantContext vc) {
+        final VariantContextBuilder vcb = new VariantContextBuilder(vc);
+        vcb.filters(new HashSet<>());
+
+        final Map<Mutect2VariantFilter, Double> artifactProbabilities = filters.stream()
+                .collect(Collectors.toMap(f -> f, f -> f.artifactProbability(vc, this)));
+
+        final double overallArtifactProbability = overallAndTechnicalOnlyArtifactProbabilities(artifactProbabilities).getLeft();
+
+        final boolean filtered = overallArtifactProbability > getArtifactProbabilityThreshold() - EPSILON;
+
+        if (filtered) {
+            expectedFalseNegatives.add(1 - overallArtifactProbability);
+        } else {
+            passingVariants.increment();
+            expectedFalsePositives.add(overallArtifactProbability);
+            expectedTruePositives.add(1 - overallArtifactProbability);
+        }
+
+        for (final Map.Entry<Mutect2VariantFilter, Double> entry : artifactProbabilities.entrySet()) {
+            final String filter = entry.getKey().filterName();
+            final double artifactProbability = entry.getValue();
+
+            final Optional<String> posteriorAnnotation = entry.getKey().phredScaledPosteriorAnnotationName();
+            if (posteriorAnnotation.isPresent() && entry.getKey().requiredAnnotations().stream().allMatch(vc::hasAttribute)) {
+                vcb.attribute(posteriorAnnotation.get(), QualityUtils.errorProbToQual(artifactProbability));
+            }
+
+            if (artifactProbability > EPSILON && artifactProbability > getArtifactProbabilityThreshold() - EPSILON) {
+                vcb.filter(filter);
+                expectedFalseNegativesPerFilter.get(filter).add(1 - overallArtifactProbability);
+            } else if (!filtered) {
+                expectedFalsePositivesPerFilter.get(filter).add(artifactProbability);
+            }
+        }
+        return vcb.make();
+    }
+
+    public void accumulateArtifactPosteriorsAndBadHaplotypes(final VariantContext vc) {
+        final double artifactProbability = overallAndTechnicalOnlyArtifactProbabilities(vc).getLeft();
+
+        if (artifactProbability > getArtifactProbabilityThreshold() - EPSILON) {
+            recordFilteredHaplotypes(vc);
+        }
+
+        addFirstPassArtifactProbability(artifactProbability);
     }
 
 }
