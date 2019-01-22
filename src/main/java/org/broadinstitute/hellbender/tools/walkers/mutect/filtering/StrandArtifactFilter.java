@@ -2,7 +2,6 @@ package org.broadinstitute.hellbender.tools.walkers.mutect.filtering;
 
 import com.google.common.annotations.VisibleForTesting;
 import htsjdk.variant.variantcontext.VariantContext;
-import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.commons.math3.util.CombinatoricsUtils;
 import org.broadinstitute.hellbender.tools.walkers.validation.basicshortmutpileup.BetaBinomialDistribution;
 import org.broadinstitute.hellbender.utils.MathUtils;
@@ -28,8 +27,6 @@ public class StrandArtifactFilter extends Mutect2VariantFilter {
     private static final double ALPHA_SEQ = 10;
     private static final double BETA_SEQ = 2000;
 
-    private static final double DEFINITE_NON_ARTIFACT_THRESHOLD = 0.001;
-
     private static final double INITIAL_STRAND_ARTIFACT_PRIOR = 0.01;
 
     private double strandArtifactPrior = INITIAL_STRAND_ARTIFACT_PRIOR;
@@ -38,8 +35,7 @@ public class StrandArtifactFilter extends Mutect2VariantFilter {
 
     private static final double NON_ARTIFACT_PSEUDOCOUNT = 10;
 
-    private final MutableInt definiteNonArtifactCount = new MutableInt(0);
-    private final List<EStep> uncertainESteps = new ArrayList<>();
+    private final List<EStep> eSteps = new ArrayList<>();
 
     @Override
     public double calculateArtifactProbability(final VariantContext vc, final Mutect2FilteringInfo filteringInfo) {
@@ -62,21 +58,16 @@ public class StrandArtifactFilter extends Mutect2VariantFilter {
     @Override
     protected void accumulateDataForLearning(final VariantContext vc, final Mutect2FilteringInfo filteringInfo) {
         final EStep eStep = calculateArtifactProbabilities(vc, filteringInfo);
-        if (eStep.getArtifactProbability() < DEFINITE_NON_ARTIFACT_THRESHOLD) {
-            definiteNonArtifactCount.increment();
-        } else {
-            uncertainESteps.add(eStep);
-        }
+        eSteps.add(eStep);
     }
 
     @Override
     protected void learnParameters() {
 
-        final List<EStep> potentialArtifacts = uncertainESteps.stream()
+        final List<EStep> potentialArtifacts = eSteps.stream()
                 .filter(eStep -> eStep.getArtifactProbability() > 0.1).collect(Collectors.toList());
         final double totalArtifacts = potentialArtifacts.stream().mapToDouble(EStep::getArtifactProbability).sum();
-        final double totalNonArtifacts = uncertainESteps.stream().mapToDouble(e -> 1 - e.getArtifactProbability()).sum()
-                + definiteNonArtifactCount.getValue();
+        final double totalNonArtifacts = eSteps.stream().mapToDouble(e -> 1 - e.getArtifactProbability()).sum();
         strandArtifactPrior = (totalArtifacts + ARTIFACT_PSEUDOCOUNT) / (totalNonArtifacts + NON_ARTIFACT_PSEUDOCOUNT);
 
 
@@ -105,7 +96,7 @@ public class StrandArtifactFilter extends Mutect2VariantFilter {
         alphaStrand = OptimizationUtils.max(objective, 0.01, 100, INITIAL_ALPHA_STRAND, 0.01, 0.01, 100).getPoint();
         betaStrand = (1/artifactBetaMean - 1)*alphaStrand;
         // free up memory
-        uncertainESteps.clear();
+        eSteps.clear();
     }
 
     @VisibleForTesting

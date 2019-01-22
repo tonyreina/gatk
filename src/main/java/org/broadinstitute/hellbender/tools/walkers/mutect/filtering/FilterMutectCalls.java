@@ -4,8 +4,6 @@ import htsjdk.variant.variantcontext.VariantContext;
 import htsjdk.variant.variantcontext.writer.VariantContextWriter;
 import htsjdk.variant.vcf.VCFHeader;
 import htsjdk.variant.vcf.VCFHeaderLine;
-import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.apache.commons.lang3.tuple.Pair;
 import org.broadinstitute.barclay.argparser.Argument;
 import org.broadinstitute.barclay.argparser.ArgumentCollection;
 import org.broadinstitute.barclay.argparser.CommandLineProgramProperties;
@@ -132,17 +130,12 @@ public final class FilterMutectCalls extends MultiplePassVariantWalker {
                                 final FeatureContext featureContext,
                                 final int n) {
         if (n == 0) {
-            // TODO: unify thee methods.  In fat, maybe unify all the accumulate methods and on each pass do all the things
-            // TODO: it would be simpler and only marginally wasteful
-            filteringInfo.accumulateDataForLearning(variant);
-            filteringInfo.accumulateRealAndArtifactCounts(variant);
+            filteringInfo.accumulateData(variant);
             // TODO: send allele fraction info the filteringInfo
         } else if (n == 1) {
-            // TODO: could bad haplotypes just be a state of the BadHaplotypeFilter?
-            // TODO: could it even be probabilistic based on the artifact probability of the worst call on same haplotype?
-            filteringInfo.accumulateArtifactPosteriorsAndBadHaplotypes(variant);
+            filteringInfo.accumulateData(variant);
         } else if (n == 2) {
-            vcfWriter.add(filteringInfo.makeFilteredVariant(variant));
+            vcfWriter.add(filteringInfo.applyFiltersAndAccumulateStats(variant));
         } else {
             throw new GATKException.ShouldNeverReachHereException("This two-pass walker should never reach (zero-indexed) pass " + n);
         }
@@ -151,10 +144,9 @@ public final class FilterMutectCalls extends MultiplePassVariantWalker {
     @Override
     protected void afterNthPass(final int n) {
         if (n == 0) {
-            filteringInfo.learnVariantAndArtifactPriors();
-            filteringInfo.learnFilterParameters();
+            filteringInfo.learnParameters();
         } else if (n == 1) {
-            filteringInfo.adjustThreshold();
+            filteringInfo.learnParameters();
         } else if (n == 2) {
             final File filteringStatsFile = new File(filteringStatsOutput != null ? filteringStatsOutput : outputVcf + FILTERING_STATS_EXTENSION);
             filteringInfo.writeFilteringStats(filteringStatsFile);

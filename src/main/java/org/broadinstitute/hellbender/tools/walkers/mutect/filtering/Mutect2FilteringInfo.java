@@ -188,33 +188,20 @@ public class Mutect2FilteringInfo {
     public void addTechnicalArtifactCount(final double x) { technicalArtifactCount.add(x); }
 
 
-    public void learnVariantAndArtifactPriors() {
-        priorProbOfArtifactVersusVariant = (technicalArtifactCount.getValue() + 1) / (realVariantCount.getValue() + technicalArtifactCount.getValue() + 2);
-        if (totalCallableSites.isPresent()) {
-            log10PriorOfSomaticSNV = Math.log10(realSNVCount.getValue() / totalCallableSites.getAsLong());
-            log10PriorOfSomaticIndel = Math.log10(realIndelCount.getValue() / totalCallableSites.getAsLong());
-        }
-    }
-
-    public void adjustThreshold() {
-        final double threshold;
+    private void adjustThreshold() {
         switch (MTFAC.thresholdStrategy) {
             case CONSTANT:
-                threshold = MTFAC.posteriorThreshold;
+                artifactProbabilityThreshold = MTFAC.posteriorThreshold;
                 break;
             case FALSE_DISCOVERY_RATE:
-                threshold = calculateThresholdBasedOnFalseDiscoveryRate(firstPassArtifactProbabilities, MTFAC.maxFalsePositiveRate);
+                artifactProbabilityThreshold = calculateThresholdBasedOnFalseDiscoveryRate(firstPassArtifactProbabilities, MTFAC.maxFalsePositiveRate);
                 break;
             case OPTIMAL_F_SCORE:
-                threshold = calculateThresholdBasedOnOptimalFScore(firstPassArtifactProbabilities, MTFAC.fScoreBeta);
+                artifactProbabilityThreshold = calculateThresholdBasedOnOptimalFScore(firstPassArtifactProbabilities, MTFAC.fScoreBeta);
                 break;
             default:
                 throw new GATKException.ShouldNeverReachHereException("Invalid threshold strategy type: " + MTFAC.thresholdStrategy + ".");
         }
-
-        firstPassArtifactProbabilities.clear();
-
-        artifactProbabilityThreshold = threshold;
     }
 
     /**
@@ -262,8 +249,6 @@ public class Mutect2FilteringInfo {
     @VisibleForTesting
     static double calculateThresholdBasedOnOptimalFScore(final List<Double> posteriors, final double beta){
         ParamUtils.isPositiveOrZero(beta, "requested F-score beta must be non-negative");
-        final double thresholdForFilteringNone = 1.0;
-        final double thresholdForFilteringAll = 0.0;
 
         Collections.sort(posteriors);
 
@@ -299,11 +284,11 @@ public class Mutect2FilteringInfo {
         return genotype.hasExtendedAttribute(GATKVCFConstants.HAPLOTYPE_CALLER_PHASING_GT_KEY) && genotype.hasExtendedAttribute(GATKVCFConstants.HAPLOTYPE_CALLER_PHASING_ID_KEY);
     }
 
-    public void accumulateDataForLearning(final VariantContext vc) {
+    public void accumulateData(final VariantContext vc) {
+        // individual filter data
         filters.forEach(f -> f.accumulateDataForLearning(vc, this));
-    }
 
-    public void accumulateRealAndArtifactCounts(final VariantContext vc) {
+        // data shared by multiple filters
         double artifactProbability = 0;
         double technicalArtifactProbability = 0;
 
@@ -313,13 +298,23 @@ public class Mutect2FilteringInfo {
             technicalArtifactProbability = filter.isTechnicalArtifact() ? Math.max(technicalArtifactProbability, prob) : technicalArtifactProbability;
         }
 
+        // TODO: wait -- are artifactProbabilibty and overllAndTechnicalArtifactProbs redundant?
         final Pair<Double, Double> overallAndTechnicalArtifactProbs = overallAndTechnicalOnlyArtifactProbabilities(vc);
 
         addRealVariantCount(1 - overallAndTechnicalArtifactProbs.getLeft(), vc.isSNP());
         addTechnicalArtifactCount(overallAndTechnicalArtifactProbs.getRight());
+
+
+        // TODO: could bad haplotypes just be a state of the BadHaplotypeFilter?
+        // TODO: could it even be probabilistic based on the artifact probability of the worst call on same haplotype?
+        // bad haplotypes and artifact posteriors
+        if (overallAndTechnicalArtifactProbs.getLeft() > getArtifactProbabilityThreshold() - EPSILON) {
+            recordFilteredHaplotypes(vc);
+        }
+
+        addFirstPassArtifactProbability(overallAndTechnicalArtifactProbs.getLeft());
     }
 
-    // TODO: dupes from FilteRMutectCalls
     private Pair<Double, Double> overallAndTechnicalOnlyArtifactProbabilities(final VariantContext vc) {
         return overallAndTechnicalOnlyArtifactProbabilities(filters.stream()
                 .collect(Collectors.toMap(f -> f, f -> f.calculateArtifactProbability(vc, this))));
@@ -336,8 +331,22 @@ public class Mutect2FilteringInfo {
         return ImmutablePair.of(overallProbability, technicalArtifactProbability);
     }
 
-    public void learnFilterParameters() {
+    public void learnParameters() {
+        // indiividual filter parameters
         filters.forEach(f -> f.learnParameters());
+
+        // global parameters
+        priorProbOfArtifactVersusVariant = (technicalArtifactCount.getValue() + 1) / (realVariantCount.getValue() + technicalArtifactCount.getValue() + 2);
+        if (totalCallableSites.isPresent()) {
+            log10PriorOfSomaticSNV = Math.log10(realSNVCount.getValue() / totalCallableSites.getAsLong());
+            log10PriorOfSomaticIndel = Math.log10(realIndelCount.getValue() / totalCallableSites.getAsLong());
+        }
+
+        adjustThreshold();
+
+
+        // put all nth-pass data clearing here and extract method
+        firstPassArtifactProbabilities.clear();
     }
 
     public void writeFilteringStats(final File filteringStatsFile) {
@@ -359,7 +368,7 @@ public class Mutect2FilteringInfo {
                 expectedTruePositives.getValue(), expectedFalsePositives.getValue(), expectedFalseNegatives.getValue());
     }
 
-    public VariantContext makeFilteredVariant(final VariantContext vc) {
+    public VariantContext applyFiltersAndAccumulateStats(final VariantContext vc) {
         final VariantContextBuilder vcb = new VariantContextBuilder(vc);
         vcb.filters(new HashSet<>());
 
@@ -395,16 +404,6 @@ public class Mutect2FilteringInfo {
             }
         }
         return vcb.make();
-    }
-
-    public void accumulateArtifactPosteriorsAndBadHaplotypes(final VariantContext vc) {
-        final double artifactProbability = overallAndTechnicalOnlyArtifactProbabilities(vc).getLeft();
-
-        if (artifactProbability > getArtifactProbabilityThreshold() - EPSILON) {
-            recordFilteredHaplotypes(vc);
-        }
-
-        addFirstPassArtifactProbability(artifactProbability);
     }
 
 }
