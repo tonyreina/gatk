@@ -26,6 +26,7 @@ public abstract class Mutect2VariantFilter {
 
     // by default do nothing, but we may override to allow some filters to learn their parameters in the first pass of {@link FilterMutectCalls}
     protected void accumulateDataForLearning(final VariantContext vc, final Mutect2FilteringInfo filteringInfo) { }
+    protected void clearAccumulatedData() { }
     protected void learnParameters() { }
 
     // by default assume that anything filtered is a technical artifact, but some filters, for example the germline and

@@ -62,8 +62,12 @@ public class StrandArtifactFilter extends Mutect2VariantFilter {
     }
 
     @Override
-    protected void learnParameters() {
+    protected void clearAccumulatedData() {
+        eSteps.clear();
+    }
 
+    @Override
+    protected void learnParameters() {
         final List<EStep> potentialArtifacts = eSteps.stream()
                 .filter(eStep -> eStep.getArtifactProbability() > 0.1).collect(Collectors.toList());
         final double totalArtifacts = potentialArtifacts.stream().mapToDouble(EStep::getArtifactProbability).sum();

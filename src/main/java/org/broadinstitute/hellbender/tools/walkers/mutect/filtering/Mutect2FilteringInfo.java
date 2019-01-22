@@ -33,41 +33,85 @@ public class Mutect2FilteringInfo {
     private static final double FIRST_PASS_THRESHOLD = 0.5;
     private static final double EPSILON = 1.0e-10;
 
+    private List<Mutect2VariantFilter> filters;
+
+    /**
+     * CONSTANT PARAMETERS
+     */
     private final M2FiltersArgumentCollection MTFAC;
     private final Set<String> normalSamples;
     private final Map<String, Double> contaminationBySample;
     private final Map<String, OverlapDetector<MinorAlleleFractionRecord>> tumorSegments;
+    private OptionalLong totalCallableSites = OptionalLong.empty();
 
-    private double artifactProbabilityThreshold = FIRST_PASS_THRESHOLD;
-
+    /**
+     * LEARNED PARAMETERS
+     */
     private double log10PriorOfSomaticSNV;
     private double log10PriorOfSomaticIndel;
-
     private double priorProbOfArtifactVersusVariant;
+    private double artifactProbabilityThreshold = FIRST_PASS_THRESHOLD;
+
+    // TODO: make this private to BadHaplotypeFilter
+    // TODO: make it probabilistic and eliminate the FIRST_PASS_THRESHOLD
+    // for each PID, the positions with PGTs of filtered genotypes
+    private final Map<String, ImmutablePair<Integer, Set<String>>> filteredPhasedCalls;
+
+    /**
+     * DATA ACCUMULATED ON EACH PASS OF {@link FilterMutectCalls}
+     */
+    final List<Double> firstPassArtifactProbabilities = new ArrayList<>();
 
     private final MutableDouble realVariantCount = new MutableDouble(0);
     private final MutableDouble realSNVCount = new MutableDouble(0);
     private final MutableDouble realIndelCount = new MutableDouble(0);
     private final MutableDouble technicalArtifactCount = new MutableDouble(0);
 
-
-
-    private List<Mutect2VariantFilter> filters;
-
+    private final OutputStats outputStats = new OutputStats();
+    /**
     private MutableInt passingVariants = new MutableInt(0);
     private Map<String, MutableDouble> expectedFalsePositivesPerFilter = new HashMap<>();
     private Map<String, MutableDouble> expectedFalseNegativesPerFilter = new HashMap<>();
     private final MutableDouble expectedFalsePositives = new MutableDouble(0);
     private final MutableDouble expectedTruePositives = new MutableDouble(0);
     private final MutableDouble expectedFalseNegatives = new MutableDouble(0);
+*/
 
-    private OptionalLong totalCallableSites = OptionalLong.empty();
+    private class OutputStats {
+        private int calls = 0;
+        private double TPs = 0;
+        private double FPs = 0;
+        private double FNs = 0;
 
-    // for each PID, the positions with PGTs of filtered genotypes
-    private final Map<String, ImmutablePair<Integer, Set<String>>> filteredPhasedCalls;
+        private Map<Mutect2VariantFilter, Double> filterFPs = makeEmptyFilterCounts();
+        private Map<Mutect2VariantFilter, Double> filterFNs = makeEmptyFilterCounts();
 
-    // artifact posteriors from first pass
-    List<Double> firstPassArtifactProbabilities = new ArrayList<>();
+        public void writeFilteringStats(final File filteringStatsFile) {
+            final double totalTrueVariants = TPs + FNs;
+
+            final List<FilterStats> filterStats = filters.stream()
+                    .map(f -> new FilterStats(f.filterName(), filterFPs.get(f), filterFPs.get(f) / calls, filterFNs.get(f), filterFNs.get(f) / totalTrueVariants))
+                    .filter(stats -> stats.getFalsePositiveCount() > 0 || stats.getFalseNegativeCount() > 0)
+                    .collect(Collectors.toList());
+
+            FilterStats.writeM2FilterSummary(filterStats, filteringStatsFile, getArtifactProbabilityThreshold(), calls, TPs, FPs, FNs);
+        }
+
+        private Map<Mutect2VariantFilter, Double> makeEmptyFilterCounts() {
+            return filters.stream().collect(Collectors.toMap(f -> f, f -> 0.0));
+        }
+
+
+        public void clear() {
+            calls = 0;
+            TPs = 0;
+            FPs = 0;
+            FNs = 0;
+
+            filterFPs = makeEmptyFilterCounts();
+            filterFNs = makeEmptyFilterCounts();
+        }
+    }
 
     public Mutect2FilteringInfo(M2FiltersArgumentCollection MTFAC, final VCFHeader vcfHeader) {
         this.MTFAC = MTFAC;
@@ -333,7 +377,7 @@ public class Mutect2FilteringInfo {
 
     public void learnParameters() {
         // indiividual filter parameters
-        filters.forEach(f -> f.learnParameters());
+        filters.forEach(Mutect2VariantFilter::learnParameters);
 
         // global parameters
         priorProbOfArtifactVersusVariant = (technicalArtifactCount.getValue() + 1) / (realVariantCount.getValue() + technicalArtifactCount.getValue() + 2);
@@ -344,28 +388,18 @@ public class Mutect2FilteringInfo {
 
         adjustThreshold();
 
+        // this is crucial -- otherwise nth pass will use duplicate accumulated data from 0th, 1st. . . n-1th pass
+        clearAccumulatedData();
+    }
 
-        // put all nth-pass data clearing here and extract method
+    private void clearAccumulatedData() {
+        filters.forEach(Mutect2VariantFilter::clearAccumulatedData);
+
         firstPassArtifactProbabilities.clear();
     }
 
     public void writeFilteringStats(final File filteringStatsFile) {
-        final int totalCalls = passingVariants.getValue();
-        final List<FilterStats> filterStats = filters.stream().map(Mutect2VariantFilter::filterName)
-                .map(filter -> {
-                    final double falseNegatives = expectedFalseNegativesPerFilter.get(filter).getValue();
-                    final double falsePositives = expectedFalsePositivesPerFilter.get(filter).getValue();
-                    final double fdr = falsePositives / totalCalls;
-                    final double totalTrueVariants = expectedTruePositives.getValue() + expectedFalseNegatives.getValue();
-
-                    return new FilterStats(filter, falsePositives, fdr, falseNegatives, falseNegatives / totalTrueVariants);
-                })
-                .filter(stats -> stats.getFalsePositiveCount() > 0 || stats.getFalseNegativeCount() > 0)
-                .collect(Collectors.toList());
-
-
-        FilterStats.writeM2FilterSummary(filterStats, filteringStatsFile, getArtifactProbabilityThreshold(), totalCalls,
-                expectedTruePositives.getValue(), expectedFalsePositives.getValue(), expectedFalseNegatives.getValue());
+        outputStats.writeFilteringStats(filteringStatsFile);
     }
 
     public VariantContext applyFiltersAndAccumulateStats(final VariantContext vc) {
