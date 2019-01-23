@@ -1,7 +1,5 @@
 package org.broadinstitute.hellbender.tools.walkers.mutect.filtering;
 
-import com.google.common.annotations.VisibleForTesting;
-import htsjdk.samtools.util.OverlapDetector;
 import htsjdk.variant.variantcontext.Genotype;
 import htsjdk.variant.variantcontext.VariantContext;
 import htsjdk.variant.variantcontext.VariantContextBuilder;
@@ -11,13 +9,10 @@ import org.apache.commons.lang3.mutable.MutableDouble;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.broadinstitute.hellbender.exceptions.GATKException;
-import org.broadinstitute.hellbender.tools.walkers.contamination.ContaminationRecord;
-import org.broadinstitute.hellbender.tools.walkers.contamination.MinorAlleleFractionRecord;
 import org.broadinstitute.hellbender.tools.walkers.mutect.Mutect2Engine;
 import org.broadinstitute.hellbender.tools.walkers.mutect.MutectStats;
 import org.broadinstitute.hellbender.utils.MathUtils;
 import org.broadinstitute.hellbender.utils.QualityUtils;
-import org.broadinstitute.hellbender.utils.param.ParamUtils;
 import org.broadinstitute.hellbender.utils.variant.GATKVCFConstants;
 
 import java.io.File;
@@ -29,7 +24,6 @@ import java.util.stream.Collectors;
  * the set of normal samples, the samples' contamination, and the tumor sample CNV segments
  */
 public class Mutect2FilteringInfo {
-    private static final double FIRST_PASS_THRESHOLD = 0.5;
     private static final double EPSILON = 1.0e-10;
 
     private final List<Mutect2VariantFilter> filters = new ArrayList<>();
@@ -37,7 +31,6 @@ public class Mutect2FilteringInfo {
     /**
      * CONSTANT PARAMETERS
      */
-    private final M2FiltersArgumentCollection MTFAC;
     private final Set<String> normalSamples;
     private OptionalLong totalCallableSites = OptionalLong.empty();
 
@@ -47,7 +40,6 @@ public class Mutect2FilteringInfo {
     private double log10PriorOfSomaticSNV;
     private double log10PriorOfSomaticIndel;
     private double priorProbOfArtifactVersusVariant;
-    private double artifactProbabilityThreshold = FIRST_PASS_THRESHOLD;
 
     // TODO: make this private to BadHaplotypeFilter
     // TODO: make it probabilistic and eliminate the FIRST_PASS_THRESHOLD
@@ -57,7 +49,8 @@ public class Mutect2FilteringInfo {
     /**
      * DATA ACCUMULATED ON EACH PASS OF {@link FilterMutectCalls}
      */
-    final List<Double> firstPassArtifactProbabilities = new ArrayList<>();
+    private final ThresholdCalculator thresholdCalculator;
+    private final OutputStats outputStats = new OutputStats();
 
     // TODO: absorb into outputStats
     private final MutableDouble realVariantCount = new MutableDouble(0);
@@ -65,10 +58,11 @@ public class Mutect2FilteringInfo {
     private final MutableDouble realIndelCount = new MutableDouble(0);
     private final MutableDouble technicalArtifactCount = new MutableDouble(0);
 
-    private final OutputStats outputStats = new OutputStats();
+
 
     public Mutect2FilteringInfo(M2FiltersArgumentCollection MTFAC, final VCFHeader vcfHeader) {
-        this.MTFAC = MTFAC;
+        thresholdCalculator = new ThresholdCalculator(MTFAC.thresholdStrategy, MTFAC.initialPosteriorThreshold, MTFAC.maxFalsePositiveRate, MTFAC.fScoreBeta);
+
         normalSamples = vcfHeader.getMetaDataInInputOrder().stream()
                 .filter(line -> line.getKey().equals(Mutect2Engine.NORMAL_SAMPLE_KEY_IN_VCF_HEADER))
                 .map(VCFHeaderLine::getValue)
@@ -127,7 +121,7 @@ public class Mutect2FilteringInfo {
     }
 
     public double getArtifactProbabilityThreshold() {
-        return artifactProbabilityThreshold;
+        return thresholdCalculator.getThreshold();
     }
 
     public double getLog10PriorOfSomaticVariant(final VariantContext vc) {
@@ -136,7 +130,7 @@ public class Mutect2FilteringInfo {
 
     public double getPriorProbOfArtifactVersusVariant() { return priorProbOfArtifactVersusVariant; }
 
-    public void recordFilteredHaplotypes(final VariantContext vc) {
+    private void recordFilteredHaplotypes(final VariantContext vc) {
         final Map<String, Set<String>> phasedGTsForEachPhaseID = vc.getGenotypes().stream()
                 .filter(gt -> !normalSamples.contains(gt.getSampleName()))
                 .filter(Mutect2FilteringInfo::hasPhaseInfo)
@@ -148,109 +142,12 @@ public class Mutect2FilteringInfo {
         }
     }
 
-    public void addFirstPassArtifactProbability(final double prob) {
-        firstPassArtifactProbabilities.add(prob);
-    }
-
-    public void addRealVariantCount(final double x, final boolean isSNV) {
+    private void addRealVariantCount(final double x, final boolean isSNV) {
         realVariantCount.add(x);
         (isSNV ? realSNVCount : realIndelCount).add(x);
     }
 
-    public void addTechnicalArtifactCount(final double x) { technicalArtifactCount.add(x); }
-
-
-    private void adjustThreshold() {
-        switch (MTFAC.thresholdStrategy) {
-            case CONSTANT:
-                artifactProbabilityThreshold = MTFAC.posteriorThreshold;
-                break;
-            case FALSE_DISCOVERY_RATE:
-                artifactProbabilityThreshold = calculateThresholdBasedOnFalseDiscoveryRate(firstPassArtifactProbabilities, MTFAC.maxFalsePositiveRate);
-                break;
-            case OPTIMAL_F_SCORE:
-                artifactProbabilityThreshold = calculateThresholdBasedOnOptimalFScore(firstPassArtifactProbabilities, MTFAC.fScoreBeta);
-                break;
-            default:
-                throw new GATKException.ShouldNeverReachHereException("Invalid threshold strategy type: " + MTFAC.thresholdStrategy + ".");
-        }
-    }
-
-    /**
-     *
-     * Compute the filtering threshold that ensures that the false positive rate among the resulting pass variants
-     * will not exceed the requested false positive rate
-     *
-     * @param posteriors A list of posterior probabilities, which gets sorted
-     * @param requestedFPR We set the filtering threshold such that the FPR doesn't exceed this value
-     * @return
-     */
-    @VisibleForTesting
-    static double calculateThresholdBasedOnFalseDiscoveryRate(final List<Double> posteriors, final double requestedFPR){
-        ParamUtils.isPositiveOrZero(requestedFPR, "requested FPR must be non-negative");
-        final double thresholdForFilteringNone = 1.0;
-        final double thresholdForFilteringAll = 0.0;
-
-        Collections.sort(posteriors);
-
-        final int numPassingVariants = posteriors.size();
-        double cumulativeExpectedFPs = 0.0;
-
-        for (int i = 0; i < numPassingVariants; i++){
-            final double posterior = posteriors.get(i);
-
-            // One can show that the cumulative error rate is monotonically increasing in i
-            final double expectedFPR = (cumulativeExpectedFPs + posterior) / (i + 1);
-            if (expectedFPR > requestedFPR){
-                return i > 0 ? posteriors.get(i-1) : thresholdForFilteringAll;
-            }
-
-            cumulativeExpectedFPs += posterior;
-        }
-
-        // If the expected FP rate never exceeded the max tolerable value, then we can let everything pass
-        return thresholdForFilteringNone;
-    }
-
-    /**
-     * Compute the filtering threshold that maximizes the F_beta score
-     *
-     * @param posteriors A list of posterior probabilities, which gets sorted
-     * @param beta relative weight of recall to precision
-     */
-    @VisibleForTesting
-    static double calculateThresholdBasedOnOptimalFScore(final List<Double> posteriors, final double beta){
-        ParamUtils.isPositiveOrZero(beta, "requested F-score beta must be non-negative");
-
-        Collections.sort(posteriors);
-
-        final double expectedTruePositives = posteriors.stream()
-                .mapToDouble(prob -> 1 - prob).sum();
-
-
-        // starting from filtering everything (threshold = 0) increase the threshold to maximize the F score
-        final MutableDouble truePositives = new MutableDouble(0);
-        final MutableDouble falsePositives = new MutableDouble(0);
-        final MutableDouble falseNegatives = new MutableDouble(expectedTruePositives);
-        int optimalIndexInclusive = -1; // include all indices up to and including this. -1 mean filter all.
-        double optimalFScore = 0;   // if you exclude everything, recall is zero
-
-        final int N = posteriors.size();
-
-        for (int n = 0; n < N; n++){
-            truePositives.add(1 - posteriors.get(n));
-            falsePositives.add(posteriors.get(n));
-            falseNegatives.subtract(1 - posteriors.get(n));
-            final double F = (1+beta*beta)*truePositives.getValue() /
-                    ((1+beta*beta)*truePositives.getValue() + beta*beta*falseNegatives.getValue() + falsePositives.getValue());
-            if (F >= optimalFScore) {
-                optimalIndexInclusive = n;
-                optimalFScore = F;
-            }
-        }
-
-        return optimalIndexInclusive == -1 ? 0 : (optimalIndexInclusive == N - 1 ? 1 : posteriors.get(optimalIndexInclusive));
-    }
+    private void addTechnicalArtifactCount(final double x) { technicalArtifactCount.add(x); }
 
     public static boolean hasPhaseInfo(final Genotype genotype) {
         return genotype.hasExtendedAttribute(GATKVCFConstants.HAPLOTYPE_CALLER_PHASING_GT_KEY) && genotype.hasExtendedAttribute(GATKVCFConstants.HAPLOTYPE_CALLER_PHASING_ID_KEY);
@@ -261,21 +158,9 @@ public class Mutect2FilteringInfo {
         filters.forEach(f -> f.accumulateDataForLearning(vc, this));
 
         // data shared by multiple filters
-        double artifactProbability = 0;
-        double technicalArtifactProbability = 0;
-
-        for (final Mutect2VariantFilter filter : filters) {
-            final double prob = filter.artifactProbability(vc, this);
-            artifactProbability = Math.max(artifactProbability, prob);
-            technicalArtifactProbability = filter.isTechnicalArtifact() ? Math.max(technicalArtifactProbability, prob) : technicalArtifactProbability;
-        }
-
-        // TODO: wait -- are artifactProbabilibty and overllAndTechnicalArtifactProbs redundant?
         final Pair<Double, Double> overallAndTechnicalArtifactProbs = overallAndTechnicalOnlyArtifactProbabilities(vc);
-
         addRealVariantCount(1 - overallAndTechnicalArtifactProbs.getLeft(), vc.isSNP());
         addTechnicalArtifactCount(overallAndTechnicalArtifactProbs.getRight());
-
 
         // TODO: could bad haplotypes just be a state of the BadHaplotypeFilter?
         // TODO: could it even be probabilistic based on the artifact probability of the worst call on same haplotype?
@@ -284,7 +169,7 @@ public class Mutect2FilteringInfo {
             recordFilteredHaplotypes(vc);
         }
 
-        addFirstPassArtifactProbability(overallAndTechnicalArtifactProbs.getLeft());
+        thresholdCalculator.addArtifactProbability(overallAndTechnicalArtifactProbs.getLeft());
     }
 
     private Pair<Double, Double> overallAndTechnicalOnlyArtifactProbabilities(final VariantContext vc) {
@@ -314,7 +199,7 @@ public class Mutect2FilteringInfo {
             log10PriorOfSomaticIndel = Math.log10(realIndelCount.getValue() / totalCallableSites.getAsLong());
         }
 
-        adjustThreshold();
+        thresholdCalculator.relearnThreshold();
 
         // this is crucial -- otherwise nth pass will use duplicate accumulated data from 0th, 1st. . . n-1th pass
         clearAccumulatedData();
@@ -322,8 +207,8 @@ public class Mutect2FilteringInfo {
 
     private void clearAccumulatedData() {
         filters.forEach(Mutect2VariantFilter::clearAccumulatedData);
-
-        firstPassArtifactProbabilities.clear();
+        thresholdCalculator.clear();
+        outputStats.clear();
     }
 
     public void writeFilteringStats(final File filteringStatsFile) {

@@ -16,15 +16,15 @@ public class M2FiltersArgumentCollection {
     public static final String THRESHOLD_STRATEGY_LONG_NAME = "threshold-strategy";
     public static final String F_SCORE_BETA_LONG_NAME = "f-score-beta";
     public static final String FALSE_DISCOVERY_RATE_LONG_NAME = "false-discovery-rate";
-    public static final String POSTERIOR_THRESHOLD_LONG_NAME = "posterior-threshold";
+    public static final String INITIAL_THRESHOLD_LONG_NAME = "initial-threshold";
 
-    private static final ThresholdStrategy DEFAULT_THRESHOLD_STRATEGY = ThresholdStrategy.OPTIMAL_F_SCORE;
+    private static final ThresholdCalculator.Strategy DEFAULT_THRESHOLD_STRATEGY = ThresholdCalculator.Strategy.OPTIMAL_F_SCORE;
     private static final double DEFAULT_F_SCORE_BETA = 1.0;
     private static final double DEFAULT_MAX_FALSE_DISCOVERY_RATE = 0.05;
-    private static final double DEFAULT_CONSTANT_POSTERIOR_THRESHOLD = 0.1;
+    private static final double DEFAULT_INITIAL_POSTERIOR_THRESHOLD = 0.1;
 
     @Argument(fullName = THRESHOLD_STRATEGY_LONG_NAME, optional = true, doc = "The method for optimizing the posterior probability threshold")
-    public ThresholdStrategy thresholdStrategy = DEFAULT_THRESHOLD_STRATEGY;
+    public ThresholdCalculator.Strategy thresholdStrategy = DEFAULT_THRESHOLD_STRATEGY;
 
     @Argument(fullName = F_SCORE_BETA_LONG_NAME, optional = true, doc = "F score beta, the relative weight of recall to precision, used if OPTIMAL_F_SCORE strategy is chosen")
     public double fScoreBeta = DEFAULT_F_SCORE_BETA;
@@ -32,8 +32,8 @@ public class M2FiltersArgumentCollection {
     @Argument(fullName = FALSE_DISCOVERY_RATE_LONG_NAME, optional = true, doc = "Maximum false discovery rate allowed if FALSE_DISCOVERY_RATE threshold strategy is chosen")
     public double maxFalsePositiveRate = DEFAULT_MAX_FALSE_DISCOVERY_RATE;
 
-    @Argument(fullName = POSTERIOR_THRESHOLD_LONG_NAME, optional = true, doc = "Constant artifact probability threshold used if CONSTANT threshold strategy is chosen")
-    public double posteriorThreshold = DEFAULT_CONSTANT_POSTERIOR_THRESHOLD;
+    @Argument(fullName = INITIAL_THRESHOLD_LONG_NAME, optional = true, doc = "Initial artifact probability threshold used in first iteration")
+    public double initialPosteriorThreshold = DEFAULT_INITIAL_POSTERIOR_THRESHOLD;
 
     /**
      * Mitochondria mode includes the filters {@link LogOddsOverDepthFilter} and {@link ChimericOriginalAlignmentFilter}
