@@ -32,15 +32,13 @@ public class Mutect2FilteringInfo {
     private static final double FIRST_PASS_THRESHOLD = 0.5;
     private static final double EPSILON = 1.0e-10;
 
-    private List<Mutect2VariantFilter> filters;
+    private final List<Mutect2VariantFilter> filters = new ArrayList<>();
 
     /**
      * CONSTANT PARAMETERS
      */
     private final M2FiltersArgumentCollection MTFAC;
     private final Set<String> normalSamples;
-    private final Map<String, Double> contaminationBySample;
-    private final Map<String, OverlapDetector<MinorAlleleFractionRecord>> tumorSegments;
     private OptionalLong totalCallableSites = OptionalLong.empty();
 
     /**
@@ -61,6 +59,7 @@ public class Mutect2FilteringInfo {
      */
     final List<Double> firstPassArtifactProbabilities = new ArrayList<>();
 
+    // TODO: absorb into outputStats
     private final MutableDouble realVariantCount = new MutableDouble(0);
     private final MutableDouble realSNVCount = new MutableDouble(0);
     private final MutableDouble realIndelCount = new MutableDouble(0);
@@ -75,20 +74,6 @@ public class Mutect2FilteringInfo {
                 .map(VCFHeaderLine::getValue)
                 .collect(Collectors.toSet());
 
-        contaminationBySample = MTFAC.contaminationTables.stream()
-                .map(file -> ContaminationRecord.readFromFile(file).get(0))
-                .collect(Collectors.toMap(rec -> rec.getSample(), rec -> rec.getContamination()));
-
-        for (final String sample : vcfHeader.getSampleNamesInOrder()) {
-            if (!contaminationBySample.containsKey(sample)) {
-                contaminationBySample.put(sample, MTFAC.contaminationEstimate);
-            }
-        }
-
-        tumorSegments = MTFAC.tumorSegmentationTables.stream()
-                .map(MinorAlleleFractionRecord::readFromFile)
-                .collect(Collectors.toMap(ImmutablePair::getLeft, p -> OverlapDetector.create(p.getRight())));
-
         filteredPhasedCalls = new HashMap<>();
 
         log10PriorOfSomaticSNV = MTFAC.log10PriorProbOfSomaticSNV;
@@ -96,30 +81,33 @@ public class Mutect2FilteringInfo {
 
         priorProbOfArtifactVersusVariant = MTFAC.initialPriorOfArtifactVersusVariant;
 
-        filters = new ArrayList<>();
+        buildFiltersList(MTFAC);
+    }
+
+    private void buildFiltersList(final M2FiltersArgumentCollection MTFAC) {
         filters.add(new TumorEvidenceFilter());
-        filters.add(new BaseQualityFilter());
-        filters.add(new MappingQualityFilter());
-        filters.add(new DuplicatedAltReadFilter());
+        filters.add(new BaseQualityFilter(MTFAC.minMedianBaseQuality));
+        filters.add(new MappingQualityFilter(MTFAC.minMedianMappingQuality, MTFAC.longIndelLength));
+        filters.add(new DuplicatedAltReadFilter(MTFAC.uniqueAltReadCount));
         filters.add(new StrandArtifactFilter());
-        filters.add(new ContaminationFilter());
+        filters.add(new ContaminationFilter(MTFAC.contaminationTables, MTFAC.contaminationEstimate));
         filters.add(new PanelOfNormalsFilter());
         filters.add(new NormalArtifactFilter());
         filters.add(new ReadOrientationFilter());
-        filters.add(new NRatioFilter());
-        filters.add(new StrictStrandBiasFilter());
-        filters.add(new ReadPositionFilter());
+        filters.add(new NRatioFilter(MTFAC.nRatio));
+        filters.add(new StrictStrandBiasFilter(MTFAC.minReadsOnEachStrand));
+        filters.add(new ReadPositionFilter(MTFAC.minMedianReadPosition));
 
         if (MTFAC.mitochondria) {
-            filters.add(new LogOddsOverDepthFilter());
-            filters.add(new ChimericOriginalAlignmentFilter());
+            filters.add(new LogOddsOverDepthFilter(MTFAC.minLog10OddsDividedByDepth));
+            filters.add(new ChimericOriginalAlignmentFilter(MTFAC.maxNuMTFraction));
         } else {
-            filters.add(new ClusteredEventsFilter());
-            filters.add(new MultiallelicFilter());
-            filters.add(new FragmentLengthFilter());
-            filters.add(new PolymeraseSlippageFilter());
-            filters.add(new FilteredHaplotypeFilter());
-            filters.add(new GermlineFilter());
+            filters.add(new ClusteredEventsFilter(MTFAC.maxEventsInRegion));
+            filters.add(new MultiallelicFilter(MTFAC.numAltAllelesThreshold));
+            filters.add(new FragmentLengthFilter(MTFAC.maxMedianFragmentLengthDifference));
+            filters.add(new PolymeraseSlippageFilter(MTFAC.minSlippageLength, MTFAC.slippageRate));
+            filters.add(new FilteredHaplotypeFilter(MTFAC.maxDistanceToFilteredCallOnSameHaplotype));
+            filters.add(new GermlineFilter(MTFAC.tumorSegmentationTables));
         }
     }
 
@@ -130,20 +118,8 @@ public class Mutect2FilteringInfo {
         totalCallableSites = OptionalLong.of(Math.round(stats.get(Mutect2Engine.CALLABLE_SITES_NAME)));
     }
 
-    public M2FiltersArgumentCollection getMTFAC() {
-        return MTFAC;
-    }
-
     public Set<String> getNormalSamples() {
         return normalSamples;
-    }
-
-    public Map<String, Double> getContaminationBySample() {
-        return contaminationBySample;
-    }
-
-    public Map<String, OverlapDetector<MinorAlleleFractionRecord>> getTumorSegments() {
-        return tumorSegments;
     }
 
     public Map<String, ImmutablePair<Integer, Set<String>>> getFilteredPhasedCalls() {

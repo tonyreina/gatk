@@ -8,11 +8,16 @@ import java.util.Collections;
 import java.util.List;
 
 public class FragmentLengthFilter extends HardFilter {
+    private final double maxMedianFragmentLengthDifference;
+
+    public FragmentLengthFilter(final double maxMedianFragmentLengthDifference) {
+        this.maxMedianFragmentLengthDifference = maxMedianFragmentLengthDifference;
+    }
     @Override
     public boolean isArtifact(final VariantContext vc, final Mutect2FilteringInfo filteringInfo) {
         final List<Integer> fragmentLengthByAllele = vc.getAttributeAsIntList(FragmentLength.KEY, 0);
 
-        return Math.abs(fragmentLengthByAllele.get(1) - fragmentLengthByAllele.get(0)) > filteringInfo.getMTFAC().maxMedianFragmentLengthDifference;
+        return Math.abs(fragmentLengthByAllele.get(1) - fragmentLengthByAllele.get(0)) > maxMedianFragmentLengthDifference;
     }
 
     @Override

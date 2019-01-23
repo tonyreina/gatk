@@ -8,6 +8,11 @@ import java.util.Collections;
 import java.util.List;
 
 public class LogOddsOverDepthFilter extends HardFilter {
+    private final double minLog10OddsDividedByDepth;
+
+    public LogOddsOverDepthFilter(final double minLog10OddsDividedByDepth) {
+        this.minLog10OddsDividedByDepth = minLog10OddsDividedByDepth;
+    }
     @Override
     public boolean isArtifact(final VariantContext vc, final Mutect2FilteringInfo filteringInfo) {
         if(!vc.isBiallelic()) {
@@ -16,7 +21,7 @@ public class LogOddsOverDepthFilter extends HardFilter {
 
         final Double lod = vc.getAttributeAsDouble(GATKVCFConstants.TUMOR_LOD_KEY, 1);
         final Double depth = vc.getAttributeAsDouble(VCFConstants.DEPTH_KEY, 1);
-        return lod / depth < filteringInfo.getMTFAC().minLog10OddsDividedByDepth;
+        return lod / depth < minLog10OddsDividedByDepth;
     }
 
     @Override

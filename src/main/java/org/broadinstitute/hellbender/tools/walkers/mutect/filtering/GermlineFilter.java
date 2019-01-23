@@ -4,6 +4,7 @@ import htsjdk.samtools.util.OverlapDetector;
 import htsjdk.variant.variantcontext.Genotype;
 import htsjdk.variant.variantcontext.VariantContext;
 import org.apache.commons.lang3.mutable.MutableDouble;
+import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.broadinstitute.hellbender.tools.walkers.contamination.MinorAlleleFractionRecord;
 import org.broadinstitute.hellbender.tools.walkers.mutect.GermlineProbabilityCalculator;
 import org.broadinstitute.hellbender.utils.GATKProtectedVariantContextUtils;
@@ -11,15 +12,23 @@ import org.broadinstitute.hellbender.utils.IndexRange;
 import org.broadinstitute.hellbender.utils.MathUtils;
 import org.broadinstitute.hellbender.utils.variant.GATKVCFConstants;
 
+import java.io.File;
 import java.util.*;
 import java.util.stream.Collectors;
 
 public class GermlineFilter extends Mutect2VariantFilter {
     private static final double MIN_ALLELE_FRACTION_FOR_GERMLINE_HOM_ALT = 0.9;
 
+    private final Map<String, OverlapDetector<MinorAlleleFractionRecord>> tumorSegments;
+
+    public GermlineFilter(final List<File> tumorSegmentationTables) {
+        tumorSegments = tumorSegmentationTables.stream()
+                .map(MinorAlleleFractionRecord::readFromFile)
+                .collect(Collectors.toMap(ImmutablePair::getLeft, p -> OverlapDetector.create(p.getRight())));
+    }
+
     @Override
     public double calculateArtifactProbability(final VariantContext vc, final Mutect2FilteringInfo filteringInfo) {
-        final Map<String, OverlapDetector<MinorAlleleFractionRecord>> tumorSegments = filteringInfo.getTumorSegments();
         final double[] tumorLog10OddsIfSomatic = GATKProtectedVariantContextUtils.getAttributeAsDoubleArray(vc, GATKVCFConstants.TUMOR_LOD_KEY);
         final Optional<double[]> normalLods = vc.hasAttribute(GATKVCFConstants.NORMAL_LOD_KEY) ?
                 Optional.of(GATKProtectedVariantContextUtils.getAttributeAsDoubleArray(vc, GATKVCFConstants.NORMAL_LOD_KEY)) : Optional.empty();
@@ -71,7 +80,7 @@ public class GermlineFilter extends Mutect2VariantFilter {
         final double[] log10OddsOfGermlineHomAltVsSomatic = MathUtils.applyToArray(altAlleleFractions, x-> x < MIN_ALLELE_FRACTION_FOR_GERMLINE_HOM_ALT ? Double.NEGATIVE_INFINITY : 0);
 
         final double[] log10GermlinePosteriors = GermlineProbabilityCalculator.calculateGermlineProbabilities(
-                populationAlleleFrequencies, log10OddsOfGermlineHetVsSomatic, log10OddsOfGermlineHomAltVsSomatic, normalLods, filteringInfo.getMTFAC().log10PriorProbOfSomaticSNV);
+                populationAlleleFrequencies, log10OddsOfGermlineHetVsSomatic, log10OddsOfGermlineHomAltVsSomatic, normalLods, filteringInfo.getLog10PriorOfSomaticVariant(vc));
 
         final int indexOfMaxTumorLod = MathUtils.maxElementIndex(tumorLog10OddsIfSomatic);
         return Math.pow(10.0, log10GermlinePosteriors[indexOfMaxTumorLod]);

@@ -8,6 +8,11 @@ import java.util.Collections;
 import java.util.List;
 
 public class NRatioFilter extends HardFilter {
+    private final double maxNRatio;
+
+    public NRatioFilter(final double maxNRatio) {
+        this.maxNRatio = maxNRatio;
+    }
     @Override
     public boolean isArtifact(final VariantContext vc, final Mutect2FilteringInfo filteringInfo) {
         final int[] ADs = sumADsOverSamples(vc, filteringInfo.getNormalSamples(), true, true);
@@ -20,7 +25,7 @@ public class NRatioFilter extends HardFilter {
 
         final int NCount = vc.getAttributeAsInt(GATKVCFConstants.N_COUNT_KEY,0);
 
-        return (double) NCount / altCount >= filteringInfo.getMTFAC().nRatio;
+        return (double) NCount / altCount >= maxNRatio;
     }
 
     @Override

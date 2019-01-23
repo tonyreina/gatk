@@ -8,6 +8,14 @@ import java.util.Collections;
 import java.util.List;
 
 public class MappingQualityFilter extends HardFilter {
+    private final double minMedianMappingQuality;
+    private final int longIndelSize;
+
+    public MappingQualityFilter(final double minMedianMappingQuality, final int longIndelSize) {
+        this.minMedianMappingQuality = minMedianMappingQuality;
+        this.longIndelSize = longIndelSize;
+    }
+
     @Override
     public boolean isArtifact(final VariantContext vc, final Mutect2FilteringInfo filteringInfo) {
         final List<Integer> indelLengths = vc.getIndelLengths();
@@ -17,7 +25,7 @@ public class MappingQualityFilter extends HardFilter {
         // we use the mapping quality annotation of the alt allele in most cases, but for long indels we use the reference
         // annotation.  We have to do this because the indel, even if it maps uniquely, gets a poor mapping quality
         // by virtue of its mismatch.  The reference mapping quality is a decent proxy for the region's mappability.
-        return mappingQualityByAllele.get(indelLength < filteringInfo.getMTFAC().longIndelLength ? 1 : 0) < filteringInfo.getMTFAC().minMedianMappingQuality;
+        return mappingQualityByAllele.get(indelLength < longIndelSize ? 1 : 0) < minMedianMappingQuality;
     }
 
     @Override

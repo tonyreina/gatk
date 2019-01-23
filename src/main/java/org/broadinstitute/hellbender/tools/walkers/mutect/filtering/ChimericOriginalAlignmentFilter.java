@@ -7,6 +7,11 @@ import java.util.Collections;
 import java.util.List;
 
 public class ChimericOriginalAlignmentFilter extends HardFilter {
+    private final double maxNuMTFraction;
+
+    public ChimericOriginalAlignmentFilter(final double maxNuMTFraction) {
+        this.maxNuMTFraction = maxNuMTFraction;
+    }
     @Override
     public boolean isArtifact(final VariantContext vc, final Mutect2FilteringInfo filteringInfo) {
         if(!vc.isBiallelic()) {
@@ -15,7 +20,7 @@ public class ChimericOriginalAlignmentFilter extends HardFilter {
 
         final int altCount = vc.getGenotypes().stream().mapToInt(g -> g.getAD()[1]).sum();
         final int nonMitochondrialOriginalAlignmentCount = vc.getAttributeAsInt(GATKVCFConstants.ORIGINAL_CONTIG_MISMATCH_KEY, 0);
-        return (double) nonMitochondrialOriginalAlignmentCount / altCount > filteringInfo.getMTFAC().maxNuMTFraction;
+        return (double) nonMitochondrialOriginalAlignmentCount / altCount > maxNuMTFraction;
     }
 
     @Override

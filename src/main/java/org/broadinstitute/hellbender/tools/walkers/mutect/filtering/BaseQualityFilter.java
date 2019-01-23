@@ -9,6 +9,11 @@ import java.util.Collections;
 import java.util.List;
 
 public class BaseQualityFilter extends HardFilter {
+    private final double minMedianBaseQuality;
+
+    public BaseQualityFilter(final double minMedianBaseQuality) {
+        this.minMedianBaseQuality = minMedianBaseQuality;
+    }
 
     @Override
     public boolean isArtifact(final VariantContext vc, final Mutect2FilteringInfo filteringInfo) {
@@ -16,7 +21,7 @@ public class BaseQualityFilter extends HardFilter {
         final double[] tumorLods = GATKProtectedVariantContextUtils.getAttributeAsDoubleArray(vc, GATKVCFConstants.TUMOR_LOD_KEY);
         final int indexOfMaxTumorLod = MathUtils.maxElementIndex(tumorLods);
 
-        return baseQualityByAllele.get(indexOfMaxTumorLod + 1) < filteringInfo.getMTFAC().minMedianBaseQuality;
+        return baseQualityByAllele.get(indexOfMaxTumorLod + 1) < minMedianBaseQuality;
     }
 
     @Override

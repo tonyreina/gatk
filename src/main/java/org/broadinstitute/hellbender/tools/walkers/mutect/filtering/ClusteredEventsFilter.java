@@ -7,10 +7,16 @@ import java.util.Collections;
 import java.util.List;
 
 public class ClusteredEventsFilter extends HardFilter {
+    private final int maxEventsInRegion;
+
+    public ClusteredEventsFilter(final int maxEventsInRegion) {
+        this.maxEventsInRegion = maxEventsInRegion;
+    }
+
     @Override
     public boolean isArtifact(final VariantContext vc, final Mutect2FilteringInfo filteringInfo) {
         final Integer eventCount = vc.getAttributeAsInt(GATKVCFConstants.EVENT_COUNT_IN_HAPLOTYPE_KEY, -1);
-        return eventCount > filteringInfo.getMTFAC().maxEventsInRegion;
+        return eventCount > maxEventsInRegion;
     }
 
     @Override

@@ -14,6 +14,11 @@ import java.util.List;
 import java.util.Set;
 
 public class FilteredHaplotypeFilter extends HardFilter {
+    private final double maxIntraHaplotypeDistance;
+
+    public FilteredHaplotypeFilter(final double maxIntraHaplotypeDistance) {
+        this.maxIntraHaplotypeDistance = maxIntraHaplotypeDistance;
+    }
     @Override
     public boolean isArtifact(final VariantContext vc, final Mutect2FilteringInfo filteringInfo) {
         // use phasing of tumor genotype with greatest allele fraction
@@ -36,7 +41,7 @@ public class FilteredHaplotypeFilter extends HardFilter {
         }
 
         // Check that vc occurs on a filtered haplotype
-        return filteredCall.getRight().contains(pgt) && Math.abs(filteredCall.getLeft() - position) <= filteringInfo.getMTFAC().maxDistanceToFilteredCallOnSameHaplotype;
+        return filteredCall.getRight().contains(pgt) && Math.abs(filteredCall.getLeft() - position) <= maxIntraHaplotypeDistance;
     }
 
     @Override

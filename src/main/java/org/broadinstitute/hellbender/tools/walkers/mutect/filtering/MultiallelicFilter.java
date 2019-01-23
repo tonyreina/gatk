@@ -9,6 +9,11 @@ import java.util.Collections;
 import java.util.List;
 
 public class MultiallelicFilter extends HardFilter {
+    private final int numAltAllelesThreshold;
+
+    public MultiallelicFilter(final int numAltAllelesThreshold) {
+        this.numAltAllelesThreshold = numAltAllelesThreshold;
+    }
     @Override
     public boolean isArtifact(final VariantContext vc, final Mutect2FilteringInfo filteringInfo) {
         final double[] tumorLods = GATKProtectedVariantContextUtils.getAttributeAsDoubleArray(vc, GATKVCFConstants.TUMOR_LOD_KEY);
@@ -18,7 +23,7 @@ public class MultiallelicFilter extends HardFilter {
                 .filter(prob -> prob < filteringInfo.getArtifactProbabilityThreshold())
                 .count();
 
-        return numPassingAltAlleles > filteringInfo.getMTFAC().numAltAllelesThreshold;
+        return numPassingAltAlleles > numAltAllelesThreshold;
     }
 
     public String filterName() {

@@ -4,16 +4,26 @@ import htsjdk.variant.variantcontext.Genotype;
 import htsjdk.variant.variantcontext.VariantContext;
 import htsjdk.variant.vcf.VCFConstants;
 import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.broadinstitute.hellbender.tools.walkers.contamination.ContaminationRecord;
 import org.broadinstitute.hellbender.utils.GATKProtectedVariantContextUtils;
 import org.broadinstitute.hellbender.utils.MathUtils;
 import org.broadinstitute.hellbender.utils.variant.GATKVCFConstants;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Optional;
+import java.io.File;
+import java.util.*;
+import java.util.stream.Collectors;
 
 public class ContaminationFilter extends Mutect2VariantFilter {
+    private final Map<String, Double> contaminationBySample;
+    private final double defaultContamination;
+
+    public ContaminationFilter(final List<File> contaminationTables, final double contaminationEstimate) {
+        contaminationBySample = contaminationTables.stream()
+                .map(file -> ContaminationRecord.readFromFile(file).get(0))
+                .collect(Collectors.toMap(rec -> rec.getSample(), rec -> rec.getContamination()));
+
+        defaultContamination = contaminationEstimate;
+    }
     @Override
     public double calculateArtifactProbability(final VariantContext vc, final Mutect2FilteringInfo filteringInfo) {
         final double somaticPriorProb = Math.pow(10, filteringInfo.getLog10PriorOfSomaticVariant(vc));
@@ -24,7 +34,7 @@ public class ContaminationFilter extends Mutect2VariantFilter {
                 continue;
             }
 
-            final double contamination = filteringInfo.getContaminationBySample().get(tumorGenotype.getSampleName());
+            final double contamination = contaminationBySample.getOrDefault(tumorGenotype.getSampleName(), defaultContamination);
 
             final double[] alleleFractions = GATKProtectedVariantContextUtils.getAttributeAsDoubleArray(tumorGenotype, VCFConstants.ALLELE_FREQUENCY_KEY,
                     () -> new double[] {1.0}, 1.0);
