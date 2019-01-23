@@ -8,7 +8,6 @@ import htsjdk.variant.vcf.VCFHeaderLine;
 import org.apache.commons.lang3.mutable.MutableDouble;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
-import org.broadinstitute.hellbender.exceptions.GATKException;
 import org.broadinstitute.hellbender.tools.walkers.mutect.Mutect2Engine;
 import org.broadinstitute.hellbender.tools.walkers.mutect.MutectStats;
 import org.broadinstitute.hellbender.utils.MathUtils;
@@ -34,12 +33,6 @@ public class Mutect2FilteringInfo {
     private final Set<String> normalSamples;
     private OptionalLong totalCallableSites = OptionalLong.empty();
 
-    /**
-     * LEARNED PARAMETERS
-     */
-    private double log10PriorOfSomaticSNV;
-    private double log10PriorOfSomaticIndel;
-    private double priorProbOfArtifactVersusVariant;
 
     // TODO: make this private to BadHaplotypeFilter
     // TODO: make it probabilistic and eliminate the FIRST_PASS_THRESHOLD
@@ -47,21 +40,21 @@ public class Mutect2FilteringInfo {
     private final Map<String, ImmutablePair<Integer, Set<String>>> filteredPhasedCalls;
 
     /**
-     * DATA ACCUMULATED ON EACH PASS OF {@link FilterMutectCalls}
+     * DATA ACCUMULATED AND LEARNED ON EACH PASS OF {@link FilterMutectCalls}
      */
     private final ThresholdCalculator thresholdCalculator;
     private final OutputStats outputStats = new OutputStats();
+    private final SomaticPriorModel somaticPriorModel;
 
-    // TODO: absorb into outputStats
     private final MutableDouble realVariantCount = new MutableDouble(0);
     private final MutableDouble realSNVCount = new MutableDouble(0);
     private final MutableDouble realIndelCount = new MutableDouble(0);
     private final MutableDouble technicalArtifactCount = new MutableDouble(0);
 
 
-
     public Mutect2FilteringInfo(M2FiltersArgumentCollection MTFAC, final VCFHeader vcfHeader) {
         thresholdCalculator = new ThresholdCalculator(MTFAC.thresholdStrategy, MTFAC.initialPosteriorThreshold, MTFAC.maxFalsePositiveRate, MTFAC.fScoreBeta);
+        somaticPriorModel = new SomaticPriorModel(MTFAC.log10PriorProbOfSomaticSNV, MTFAC.log10PriorProbOfSomaticIndel, MTFAC.initialPriorOfArtifactVersusVariant);
 
         normalSamples = vcfHeader.getMetaDataInInputOrder().stream()
                 .filter(line -> line.getKey().equals(Mutect2Engine.NORMAL_SAMPLE_KEY_IN_VCF_HEADER))
@@ -69,11 +62,6 @@ public class Mutect2FilteringInfo {
                 .collect(Collectors.toSet());
 
         filteredPhasedCalls = new HashMap<>();
-
-        log10PriorOfSomaticSNV = MTFAC.log10PriorProbOfSomaticSNV;
-        log10PriorOfSomaticIndel = MTFAC.log10PriorProbOfSomaticIndel;
-
-        priorProbOfArtifactVersusVariant = MTFAC.initialPriorOfArtifactVersusVariant;
 
         buildFiltersList(MTFAC);
     }
@@ -142,34 +130,8 @@ public class Mutect2FilteringInfo {
         }
     }
 
-    private void addRealVariantCount(final double x, final boolean isSNV) {
-        realVariantCount.add(x);
-        (isSNV ? realSNVCount : realIndelCount).add(x);
-    }
-
-    private void addTechnicalArtifactCount(final double x) { technicalArtifactCount.add(x); }
-
     public static boolean hasPhaseInfo(final Genotype genotype) {
         return genotype.hasExtendedAttribute(GATKVCFConstants.HAPLOTYPE_CALLER_PHASING_GT_KEY) && genotype.hasExtendedAttribute(GATKVCFConstants.HAPLOTYPE_CALLER_PHASING_ID_KEY);
-    }
-
-    public void accumulateData(final VariantContext vc) {
-        // individual filter data
-        filters.forEach(f -> f.accumulateDataForLearning(vc, this));
-
-        // data shared by multiple filters
-        final Pair<Double, Double> overallAndTechnicalArtifactProbs = overallAndTechnicalOnlyArtifactProbabilities(vc);
-        addRealVariantCount(1 - overallAndTechnicalArtifactProbs.getLeft(), vc.isSNP());
-        addTechnicalArtifactCount(overallAndTechnicalArtifactProbs.getRight());
-
-        // TODO: could bad haplotypes just be a state of the BadHaplotypeFilter?
-        // TODO: could it even be probabilistic based on the artifact probability of the worst call on same haplotype?
-        // bad haplotypes and artifact posteriors
-        if (overallAndTechnicalArtifactProbs.getLeft() > getArtifactProbabilityThreshold() - EPSILON) {
-            recordFilteredHaplotypes(vc);
-        }
-
-        thresholdCalculator.addArtifactProbability(overallAndTechnicalArtifactProbs.getLeft());
     }
 
     private Pair<Double, Double> overallAndTechnicalOnlyArtifactProbabilities(final VariantContext vc) {
@@ -188,8 +150,29 @@ public class Mutect2FilteringInfo {
         return ImmutablePair.of(overallProbability, technicalArtifactProbability);
     }
 
+    public void accumulateData(final VariantContext vc) {
+        // individual filter data
+        filters.forEach(f -> f.accumulateDataForLearning(vc, this));
+
+        // data shared by multiple filters
+        final Pair<Double, Double> overallAndTechnicalArtifactProbs = overallAndTechnicalOnlyArtifactProbabilities(vc);
+        final double x = 1 - overallAndTechnicalArtifactProbs.getLeft();
+        realVariantCount.add(x);
+        (vc.isSNP() ? realSNVCount : realIndelCount).add(x);
+        technicalArtifactCount.add((double) overallAndTechnicalArtifactProbs.getRight());
+
+        // TODO: could bad haplotypes just be a state of the BadHaplotypeFilter?
+        // TODO: could it even be probabilistic based on the artifact probability of the worst call on same haplotype?
+        // bad haplotypes and artifact posteriors
+        if (overallAndTechnicalArtifactProbs.getLeft() > getArtifactProbabilityThreshold() - EPSILON) {
+            recordFilteredHaplotypes(vc);
+        }
+
+        thresholdCalculator.addArtifactProbability(overallAndTechnicalArtifactProbs.getLeft());
+    }
+
     public void learnParameters() {
-        // indiividual filter parameters
+        // individual filter parameters
         filters.forEach(Mutect2VariantFilter::learnParameters);
 
         // global parameters
@@ -202,17 +185,9 @@ public class Mutect2FilteringInfo {
         thresholdCalculator.relearnThreshold();
 
         // this is crucial -- otherwise nth pass will use duplicate accumulated data from 0th, 1st. . . n-1th pass
-        clearAccumulatedData();
-    }
-
-    private void clearAccumulatedData() {
         filters.forEach(Mutect2VariantFilter::clearAccumulatedData);
         thresholdCalculator.clear();
         outputStats.clear();
-    }
-
-    public void writeFilteringStats(final File filteringStatsFile) {
-        outputStats.writeFilteringStats(filteringStatsFile);
     }
 
     public VariantContext applyFiltersAndAccumulateOutputStats(final VariantContext vc) {
@@ -243,6 +218,10 @@ public class Mutect2FilteringInfo {
         }
 
         return vcb.make();
+    }
+
+    public void writeFilteringStats(final File filteringStatsFile) {
+        outputStats.writeFilteringStats(filteringStatsFile);
     }
 
     /**
