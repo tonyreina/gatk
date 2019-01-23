@@ -93,8 +93,10 @@ public final class FilterMutectCalls extends MultiplePassVariantWalker {
 
     private Mutect2FilteringInfo filteringInfo;
 
+    private static final int NUMBER_OF_LEARNING_PASSES = 2;
+
     @Override
-    protected int numberOfPasses() { return 3; }
+    protected int numberOfPasses() { return NUMBER_OF_LEARNING_PASSES + 1; }
 
     @Override
     public void onTraversalStart() {
@@ -129,29 +131,24 @@ public final class FilterMutectCalls extends MultiplePassVariantWalker {
                                 final ReferenceContext referenceContext,
                                 final FeatureContext featureContext,
                                 final int n) {
-        if (n == 0) {
+        if (n < NUMBER_OF_LEARNING_PASSES) {
             filteringInfo.accumulateData(variant);
-            // TODO: send allele fraction info the filteringInfo
-        } else if (n == 1) {
-            filteringInfo.accumulateData(variant);
-        } else if (n == 2) {
+        } else if (n == NUMBER_OF_LEARNING_PASSES) {
             vcfWriter.add(filteringInfo.applyFiltersAndAccumulateOutputStats(variant));
         } else {
-            throw new GATKException.ShouldNeverReachHereException("This two-pass walker should never reach (zero-indexed) pass " + n);
+            throw new GATKException.ShouldNeverReachHereException("This walker should never reach (zero-indexed) pass " + n);
         }
     }
 
     @Override
     protected void afterNthPass(final int n) {
-        if (n == 0) {
+        if (n < NUMBER_OF_LEARNING_PASSES) {
             filteringInfo.learnParameters();
-        } else if (n == 1) {
-            filteringInfo.learnParameters();
-        } else if (n == 2) {
+        } else if (n == NUMBER_OF_LEARNING_PASSES) {
             final File filteringStatsFile = new File(filteringStatsOutput != null ? filteringStatsOutput : outputVcf + FILTERING_STATS_EXTENSION);
             filteringInfo.writeFilteringStats(filteringStatsFile);
         } else {
-            throw new GATKException.ShouldNeverReachHereException("This three-pass walker should never reach (zero-indexed) pass " + n);
+            throw new GATKException.ShouldNeverReachHereException("This walker should never reach (zero-indexed) pass " + n);
         }
     }
 
