@@ -135,7 +135,7 @@ public final class FilterMutectCalls extends MultiplePassVariantWalker {
         } else if (n == 1) {
             filteringInfo.accumulateData(variant);
         } else if (n == 2) {
-            vcfWriter.add(filteringInfo.applyFiltersAndAccumulateStats(variant));
+            vcfWriter.add(filteringInfo.applyFiltersAndAccumulateOutputStats(variant));
         } else {
             throw new GATKException.ShouldNeverReachHereException("This two-pass walker should never reach (zero-indexed) pass " + n);
         }

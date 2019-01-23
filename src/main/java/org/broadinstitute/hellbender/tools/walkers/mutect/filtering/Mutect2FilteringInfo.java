@@ -8,7 +8,6 @@ import htsjdk.variant.variantcontext.VariantContextBuilder;
 import htsjdk.variant.vcf.VCFHeader;
 import htsjdk.variant.vcf.VCFHeaderLine;
 import org.apache.commons.lang3.mutable.MutableDouble;
-import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.broadinstitute.hellbender.exceptions.GATKException;
@@ -68,50 +67,6 @@ public class Mutect2FilteringInfo {
     private final MutableDouble technicalArtifactCount = new MutableDouble(0);
 
     private final OutputStats outputStats = new OutputStats();
-    /**
-    private MutableInt passingVariants = new MutableInt(0);
-    private Map<String, MutableDouble> expectedFalsePositivesPerFilter = new HashMap<>();
-    private Map<String, MutableDouble> expectedFalseNegativesPerFilter = new HashMap<>();
-    private final MutableDouble expectedFalsePositives = new MutableDouble(0);
-    private final MutableDouble expectedTruePositives = new MutableDouble(0);
-    private final MutableDouble expectedFalseNegatives = new MutableDouble(0);
-*/
-
-    private class OutputStats {
-        private int calls = 0;
-        private double TPs = 0;
-        private double FPs = 0;
-        private double FNs = 0;
-
-        private Map<Mutect2VariantFilter, Double> filterFPs = makeEmptyFilterCounts();
-        private Map<Mutect2VariantFilter, Double> filterFNs = makeEmptyFilterCounts();
-
-        public void writeFilteringStats(final File filteringStatsFile) {
-            final double totalTrueVariants = TPs + FNs;
-
-            final List<FilterStats> filterStats = filters.stream()
-                    .map(f -> new FilterStats(f.filterName(), filterFPs.get(f), filterFPs.get(f) / calls, filterFNs.get(f), filterFNs.get(f) / totalTrueVariants))
-                    .filter(stats -> stats.getFalsePositiveCount() > 0 || stats.getFalseNegativeCount() > 0)
-                    .collect(Collectors.toList());
-
-            FilterStats.writeM2FilterSummary(filterStats, filteringStatsFile, getArtifactProbabilityThreshold(), calls, TPs, FPs, FNs);
-        }
-
-        private Map<Mutect2VariantFilter, Double> makeEmptyFilterCounts() {
-            return filters.stream().collect(Collectors.toMap(f -> f, f -> 0.0));
-        }
-
-
-        public void clear() {
-            calls = 0;
-            TPs = 0;
-            FPs = 0;
-            FNs = 0;
-
-            filterFPs = makeEmptyFilterCounts();
-            filterFNs = makeEmptyFilterCounts();
-        }
-    }
 
     public Mutect2FilteringInfo(M2FiltersArgumentCollection MTFAC, final VCFHeader vcfHeader) {
         this.MTFAC = MTFAC;
@@ -166,9 +121,6 @@ public class Mutect2FilteringInfo {
             filters.add(new FilteredHaplotypeFilter());
             filters.add(new GermlineFilter());
         }
-
-        filters.forEach(filter -> expectedFalsePositivesPerFilter.put(filter.filterName(), new MutableDouble(0)));
-        filters.forEach(filter -> expectedFalseNegativesPerFilter.put(filter.filterName(), new MutableDouble(0)));
     }
 
     public void inputMutectStats(final File mutectStatsTable) {
@@ -402,9 +354,8 @@ public class Mutect2FilteringInfo {
         outputStats.writeFilteringStats(filteringStatsFile);
     }
 
-    public VariantContext applyFiltersAndAccumulateStats(final VariantContext vc) {
-        final VariantContextBuilder vcb = new VariantContextBuilder(vc);
-        vcb.filters(new HashSet<>());
+    public VariantContext applyFiltersAndAccumulateOutputStats(final VariantContext vc) {
+        final VariantContextBuilder vcb = new VariantContextBuilder(vc).filters(new HashSet<>());
 
         final Map<Mutect2VariantFilter, Double> artifactProbabilities = filters.stream()
                 .collect(Collectors.toMap(f -> f, f -> f.artifactProbability(vc, this)));
@@ -413,31 +364,85 @@ public class Mutect2FilteringInfo {
 
         final boolean filtered = overallArtifactProbability > getArtifactProbabilityThreshold() - EPSILON;
 
-        if (filtered) {
-            expectedFalseNegatives.add(1 - overallArtifactProbability);
-        } else {
-            passingVariants.increment();
-            expectedFalsePositives.add(overallArtifactProbability);
-            expectedTruePositives.add(1 - overallArtifactProbability);
-        }
+        outputStats.recordCall(filtered, overallArtifactProbability, artifactProbabilities);
 
         for (final Map.Entry<Mutect2VariantFilter, Double> entry : artifactProbabilities.entrySet()) {
-            final String filter = entry.getKey().filterName();
             final double artifactProbability = entry.getValue();
 
-            final Optional<String> posteriorAnnotation = entry.getKey().phredScaledPosteriorAnnotationName();
-            if (posteriorAnnotation.isPresent() && entry.getKey().requiredAnnotations().stream().allMatch(vc::hasAttribute)) {
-                vcb.attribute(posteriorAnnotation.get(), QualityUtils.errorProbToQual(artifactProbability));
-            }
+            entry.getKey().phredScaledPosteriorAnnotationName().ifPresent(annotation -> {
+                if (entry.getKey().requiredAnnotations().stream().allMatch(vc::hasAttribute)) {
+                    vcb.attribute(annotation, QualityUtils.errorProbToQual(artifactProbability));
+                }
+            });
 
+            // TODO: clarify this logic
             if (artifactProbability > EPSILON && artifactProbability > getArtifactProbabilityThreshold() - EPSILON) {
-                vcb.filter(filter);
-                expectedFalseNegativesPerFilter.get(filter).add(1 - overallArtifactProbability);
-            } else if (!filtered) {
-                expectedFalsePositivesPerFilter.get(filter).add(artifactProbability);
+                vcb.filter(entry.getKey().filterName());
             }
         }
+
         return vcb.make();
+    }
+
+    /**
+     * Helper class used on the final pass of {@link FilterMutectCalls} to record total expected true positives, false positives,
+     * and false negatives, as well as false positives and false negatives attributable to each filter
+     */
+    private class OutputStats {
+        private int pass = 0;
+        private double TPs = 0;
+        private double FPs = 0;
+        private double FNs = 0;
+
+        private Map<Mutect2VariantFilter, MutableDouble> filterFPs = makeEmptyFilterCounts();
+        private Map<Mutect2VariantFilter, MutableDouble> filterFNs = makeEmptyFilterCounts();
+
+        public void recordCall(final boolean filtered, final double artifactProbability,
+                               final Map<Mutect2VariantFilter, Double> artifactProbabilities) {
+            if (filtered) {
+                FNs += 1 - artifactProbability;
+            } else {
+                pass++;
+                FPs += artifactProbability;
+                TPs += 1 - artifactProbability;
+            }
+
+            for (final Map.Entry<Mutect2VariantFilter, Double> entry : artifactProbabilities.entrySet()) {
+                final double filterArtifactProbability = entry.getValue();
+                if (filterArtifactProbability > EPSILON && filterArtifactProbability > getArtifactProbabilityThreshold() - EPSILON) {
+                    filterFNs.get(entry.getKey()).add(1 - artifactProbability);
+                } else if (!filtered) {
+                    filterFPs.get(entry.getKey()).add(filterArtifactProbability);
+                }
+            }
+        }
+
+        public void writeFilteringStats(final File filteringStatsFile) {
+            final double totalTrueVariants = TPs + FNs;
+
+            final List<FilterStats> filterStats = filters.stream()
+                    .map(f -> new FilterStats(f.filterName(), filterFPs.get(f).getValue(), filterFPs.get(f).getValue() / pass,
+                            filterFNs.get(f).getValue(), filterFNs.get(f).getValue() / totalTrueVariants))
+                    .filter(stats -> stats.getFalsePositiveCount() > 0 || stats.getFalseNegativeCount() > 0)
+                    .collect(Collectors.toList());
+
+            FilterStats.writeM2FilterSummary(filterStats, filteringStatsFile, getArtifactProbabilityThreshold(), pass, TPs, FPs, FNs);
+        }
+
+        private Map<Mutect2VariantFilter, MutableDouble> makeEmptyFilterCounts() {
+            return filters.stream().collect(Collectors.toMap(f -> f, f -> new MutableDouble(0)));
+        }
+
+
+        public void clear() {
+            pass = 0;
+            TPs = 0;
+            FPs = 0;
+            FNs = 0;
+
+            filterFPs = makeEmptyFilterCounts();
+            filterFNs = makeEmptyFilterCounts();
+        }
     }
 
 }
