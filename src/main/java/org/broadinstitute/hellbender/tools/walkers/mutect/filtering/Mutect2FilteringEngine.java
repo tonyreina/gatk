@@ -50,9 +50,10 @@ public class Mutect2FilteringEngine {
     private final OutputStats outputStats = new OutputStats();
     private final SomaticPriorModel somaticPriorModel;
 
-    public Mutect2FilteringEngine(M2FiltersArgumentCollection MTFAC, final VCFHeader vcfHeader) {
+    public Mutect2FilteringEngine(M2FiltersArgumentCollection MTFAC, final VCFHeader vcfHeader, final File mutectStatsTable) {
         thresholdCalculator = new ThresholdCalculator(MTFAC.thresholdStrategy, MTFAC.initialPosteriorThreshold, MTFAC.maxFalsePositiveRate, MTFAC.fScoreBeta);
-        somaticPriorModel = new SomaticPriorModel(MTFAC.log10PriorProbOfSomaticSNV, MTFAC.log10PriorProbOfSomaticIndel, MTFAC.initialPriorOfArtifactVersusVariant);
+
+        somaticPriorModel = new SomaticPriorModel(MTFAC, mutectStatsTable.exists() ? MutectStats.readFromFile(mutectStatsTable) : Collections.emptyList());
 
         normalSamples = vcfHeader.getMetaDataInInputOrder().stream()
                 .filter(line -> line.getKey().equals(Mutect2Engine.NORMAL_SAMPLE_KEY_IN_VCF_HEADER))
@@ -89,13 +90,6 @@ public class Mutect2FilteringEngine {
             filters.add(new FilteredHaplotypeFilter(MTFAC.maxDistanceToFilteredCallOnSameHaplotype));
             filters.add(new GermlineFilter(MTFAC.tumorSegmentationTables));
         }
-    }
-
-    public void inputMutectStats(final File mutectStatsTable) {
-        final Map<String, Double> stats = MutectStats.readFromFile(mutectStatsTable).stream()
-                .collect(Collectors.toMap(MutectStats::getStatistic, MutectStats::getValue));
-
-        totalCallableSites = OptionalLong.of(Math.round(stats.get(Mutect2Engine.CALLABLE_SITES_NAME)));
     }
 
     public boolean isNormal(final Genotype genotype) { return normalSamples.contains(genotype.getSampleName()); }

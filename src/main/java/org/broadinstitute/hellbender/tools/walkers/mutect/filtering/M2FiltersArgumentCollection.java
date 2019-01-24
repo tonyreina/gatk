@@ -146,10 +146,10 @@ public class M2FiltersArgumentCollection {
     private static final int DEFAULT_LONG_INDEL_SIZE = 5;
 
     @Argument(fullName= LOG_10_PRIOR_OF_SNV_LONG_NAME, doc="Log10 prior probability that a site has a somatic SNV", optional = true)
-    public double log10PriorProbOfSomaticSNV = DEFAULT_LOG_10_PRIOR_OF_SNV;
+    public double log10SNVPrior = DEFAULT_LOG_10_PRIOR_OF_SNV;
 
     @Argument(fullName= LOG_10_PRIOR_OF_INDEL_LONG_NAME, doc="Log10 prior probability that a site has a somatic indel", optional = true)
-    public double log10PriorProbOfSomaticIndel = DEFAULT_LOG_10_PRIOR_OF_INDEL;
+    public double log10IndelPrior = DEFAULT_LOG_10_PRIOR_OF_INDEL;
 
     @Argument(fullName= INITIAL_PRIOR_OF_ARTIFACT_VERSUS_VARIANT_LONG_NAME, doc="Initial guess for prior probability that a called site is actually an artifact", optional = true)
     public double initialPriorOfArtifactVersusVariant = DEFAULT_INITIAL_PRIOR_OF_ARTIFACT_VERSUS_VARIANT;

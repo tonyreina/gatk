@@ -116,11 +116,8 @@ public final class FilterMutectCalls extends MultiplePassVariantWalker {
 
 
         final File mutect2StatsTable = new File(statsTable == null ? drivingVariantFile + Mutect2.DEFAULT_STATS_EXTENSION : statsTable);
-
-        filteringInfo = new Mutect2FilteringEngine(MTFAC, vcfHeader);
-        if (mutect2StatsTable.exists()) {
-            filteringInfo.inputMutectStats(mutect2StatsTable);
-        } else {
+        filteringInfo = new Mutect2FilteringEngine(MTFAC, vcfHeader, mutect2StatsTable);
+        if (!mutect2StatsTable.exists()) {
             logger.warn("Mutect stats table " + mutect2StatsTable + " not found.  Filtering will proceed without this information.");
         }
     }
