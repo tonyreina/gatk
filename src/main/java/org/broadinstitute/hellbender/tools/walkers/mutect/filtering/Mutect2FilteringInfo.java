@@ -46,12 +46,6 @@ public class Mutect2FilteringInfo {
     private final OutputStats outputStats = new OutputStats();
     private final SomaticPriorModel somaticPriorModel;
 
-    private final MutableDouble realVariantCount = new MutableDouble(0);
-    private final MutableDouble realSNVCount = new MutableDouble(0);
-    private final MutableDouble realIndelCount = new MutableDouble(0);
-    private final MutableDouble technicalArtifactCount = new MutableDouble(0);
-
-
     public Mutect2FilteringInfo(M2FiltersArgumentCollection MTFAC, final VCFHeader vcfHeader) {
         thresholdCalculator = new ThresholdCalculator(MTFAC.thresholdStrategy, MTFAC.initialPosteriorThreshold, MTFAC.maxFalsePositiveRate, MTFAC.fScoreBeta);
         somaticPriorModel = new SomaticPriorModel(MTFAC.log10PriorProbOfSomaticSNV, MTFAC.log10PriorProbOfSomaticIndel, MTFAC.initialPriorOfArtifactVersusVariant);
@@ -113,10 +107,12 @@ public class Mutect2FilteringInfo {
     }
 
     public double getLog10PriorOfSomaticVariant(final VariantContext vc) {
-        return vc.isSNP() ? (MathUtils.LOG10_ONE_THIRD + log10PriorOfSomaticSNV) : log10PriorOfSomaticIndel;
+        return somaticPriorModel.getLog10PriorOfSomaticVariant(vc);
     }
 
-    public double getPriorProbOfArtifactVersusVariant() { return priorProbOfArtifactVersusVariant; }
+    public double getPriorProbOfArtifactVersusVariant() {
+        return somaticPriorModel.getPriorProbOfArtifactVersusVariant();
+    }
 
     private void recordFilteredHaplotypes(final VariantContext vc) {
         final Map<String, Set<String>> phasedGTsForEachPhaseID = vc.getGenotypes().stream()
@@ -156,10 +152,7 @@ public class Mutect2FilteringInfo {
 
         // data shared by multiple filters
         final Pair<Double, Double> overallAndTechnicalArtifactProbs = overallAndTechnicalOnlyArtifactProbabilities(vc);
-        final double x = 1 - overallAndTechnicalArtifactProbs.getLeft();
-        realVariantCount.add(x);
-        (vc.isSNP() ? realSNVCount : realIndelCount).add(x);
-        technicalArtifactCount.add((double) overallAndTechnicalArtifactProbs.getRight());
+        somaticPriorModel.record(vc, overallAndTechnicalArtifactProbs.getLeft(), overallAndTechnicalArtifactProbs.getRight());
 
         // TODO: could bad haplotypes just be a state of the BadHaplotypeFilter?
         // TODO: could it even be probabilistic based on the artifact probability of the worst call on same haplotype?
@@ -172,22 +165,15 @@ public class Mutect2FilteringInfo {
     }
 
     public void learnParameters() {
-        // individual filter parameters
         filters.forEach(Mutect2VariantFilter::learnParameters);
-
-        // global parameters
-        priorProbOfArtifactVersusVariant = (technicalArtifactCount.getValue() + 1) / (realVariantCount.getValue() + technicalArtifactCount.getValue() + 2);
-        if (totalCallableSites.isPresent()) {
-            log10PriorOfSomaticSNV = Math.log10(realSNVCount.getValue() / totalCallableSites.getAsLong());
-            log10PriorOfSomaticIndel = Math.log10(realIndelCount.getValue() / totalCallableSites.getAsLong());
-        }
-
+        somaticPriorModel.learn();
         thresholdCalculator.relearnThreshold();
 
         // this is crucial -- otherwise nth pass will use duplicate accumulated data from 0th, 1st. . . n-1th pass
         filters.forEach(Mutect2VariantFilter::clearAccumulatedData);
         thresholdCalculator.clear();
         outputStats.clear();
+        somaticPriorModel.clear();
     }
 
     public VariantContext applyFiltersAndAccumulateOutputStats(final VariantContext vc) {
