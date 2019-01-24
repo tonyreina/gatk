@@ -15,7 +15,7 @@ public class NRatioFilter extends HardFilter {
     }
     @Override
     public boolean isArtifact(final VariantContext vc, final Mutect2FilteringInfo filteringInfo) {
-        final int[] ADs = sumADsOverSamples(vc, filteringInfo.getNormalSamples(), true, true);
+        final int[] ADs = filteringInfo.sumADsOverSamples(vc, true, true);
         final int altCount = (int) MathUtils.sum(ADs) - ADs[0];
 
         // if there is no NCount annotation or the altCount is 0, don't apply the filter

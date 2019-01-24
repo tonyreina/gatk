@@ -22,8 +22,7 @@ public class FilteredHaplotypeFilter extends HardFilter {
     @Override
     public boolean isArtifact(final VariantContext vc, final Mutect2FilteringInfo filteringInfo) {
         // use phasing of tumor genotype with greatest allele fraction
-        final Genotype tumorGenotype = vc.getGenotypes().stream()
-                .filter(g ->  !filteringInfo.getNormalSamples().contains(g.getSampleName()))
+        final Genotype tumorGenotype = vc.getGenotypes().stream().filter(filteringInfo::isTumor)
                 .max(Comparator.comparingDouble(g -> MathUtils.arrayMax(GATKProtectedVariantContextUtils.getAttributeAsDoubleArray(g, VCFConstants.ALLELE_FREQUENCY_KEY,
                         () -> new double[] {0.0}, 0.0)))).get();
 

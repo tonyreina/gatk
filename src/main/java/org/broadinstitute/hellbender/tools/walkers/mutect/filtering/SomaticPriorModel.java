@@ -33,6 +33,12 @@ public class SomaticPriorModel {
         technicalArtifactCount.add(technicalArtifactProbability);
     }
 
+    // by default, clear accumulated data after learning
+    public void learnAndClearAccumulatedData() {
+        learn();
+        clear();
+    }
+
     public void learn() {
         // global parameters
         artifactVsVariantPrior = (technicalArtifactCount.getValue() + 1) / (realVariantCount.getValue() + technicalArtifactCount.getValue() + 2);

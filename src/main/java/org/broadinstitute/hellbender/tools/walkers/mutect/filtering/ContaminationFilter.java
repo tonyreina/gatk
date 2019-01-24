@@ -30,7 +30,7 @@ public class ContaminationFilter extends Mutect2VariantFilter {
         final List<ImmutablePair<Integer, Double>> depthsAndPosteriors = new ArrayList<>();
 
         for (final Genotype tumorGenotype : vc.getGenotypes()) {
-            if (filteringInfo.getNormalSamples().contains(tumorGenotype.getSampleName())) {
+            if (filteringInfo.isNormal(tumorGenotype)) {
                 continue;
             }
 

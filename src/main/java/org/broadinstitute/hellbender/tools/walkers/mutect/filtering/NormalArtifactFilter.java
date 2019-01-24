@@ -20,11 +20,11 @@ public class NormalArtifactFilter extends Mutect2VariantFilter {
         final double[] tumorLods = GATKProtectedVariantContextUtils.getAttributeAsDoubleArray(vc, GATKVCFConstants.TUMOR_LOD_KEY);
         final int indexOfMaxTumorLod = MathUtils.maxElementIndex(tumorLods);
 
-        final int[] tumorAlleleDepths = sumADsOverSamples(vc, filteringInfo.getNormalSamples(), true, false);
+        final int[] tumorAlleleDepths = filteringInfo.sumADsOverSamples(vc, true, false);
         final int tumorDepth = (int) MathUtils.sum(tumorAlleleDepths);
         final int tumorAltDepth = tumorAlleleDepths[indexOfMaxTumorLod + 1];
 
-        final int[] normalAlleleDepths = sumADsOverSamples(vc, filteringInfo.getNormalSamples(), false, true);
+        final int[] normalAlleleDepths = filteringInfo.sumADsOverSamples(vc, false, true);
         final int normalDepth = (int) MathUtils.sum(normalAlleleDepths);
         final int normalAltDepth = normalAlleleDepths[indexOfMaxTumorLod + 1];
 

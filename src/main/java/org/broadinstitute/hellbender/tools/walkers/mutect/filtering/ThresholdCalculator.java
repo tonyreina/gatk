@@ -33,7 +33,7 @@ public class ThresholdCalculator {
         artifactProbabilities.add(artifactProbability);
     }
 
-    public void relearnThreshold() {
+    public void relearnThresholdAndClearAcumulatedProbabilities() {
         switch (strategy) {
             case CONSTANT:  // don't adjust
                 break;
@@ -46,6 +46,7 @@ public class ThresholdCalculator {
             default:
                 throw new GATKException.ShouldNeverReachHereException("Invalid threshold strategy type: " + strategy + ".");
         }
+        clear();
     }
 
     public void clear() {

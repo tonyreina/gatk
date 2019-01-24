@@ -44,7 +44,7 @@ public class StrandArtifactFilter extends Mutect2VariantFilter {
     }
 
     public EStep calculateArtifactProbabilities(final VariantContext vc, final Mutect2FilteringInfo filteringInfo) {
-        final int[] totalCounts = sumADsOverSamples(vc, filteringInfo.getNormalSamples(), true, true);
+        final int[] totalCounts = filteringInfo.sumADsOverSamples(vc, true, true);
         final int[] forwardCounts = vc.getAttributeAsIntList(GATKVCFConstants.FORWARD_STRAND_COUNT_KEY, 0).stream().mapToInt(x->x).toArray();
         final int forwardCount = (int) MathUtils.sum(forwardCounts);
         final int reverseCount = (int) MathUtils.sum(totalCounts) - forwardCount;

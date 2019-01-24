@@ -1,7 +1,6 @@
 package org.broadinstitute.hellbender.tools.walkers.mutect.filtering;
 
 import htsjdk.samtools.util.OverlapDetector;
-import htsjdk.variant.variantcontext.Genotype;
 import htsjdk.variant.variantcontext.VariantContext;
 import org.apache.commons.lang3.mutable.MutableDouble;
 import org.apache.commons.lang3.tuple.ImmutablePair;
@@ -36,12 +35,8 @@ public class GermlineFilter extends Mutect2VariantFilter {
         final double[] populationAlleleFrequencies = MathUtils.applyToArray(negativeLog10AlleleFrequencies, x -> Math.pow(10,-x));
 
         final MutableDouble weightedSumOfMafs = new MutableDouble(0);
-        for (final Genotype tumorGenotype : vc.getGenotypes()) {
+        vc.getGenotypes().stream().filter(filteringInfo::isTumor).forEach(tumorGenotype -> {
             final String sample = tumorGenotype.getSampleName();
-            if (filteringInfo.getNormalSamples().contains(sample)) {
-                continue;
-            }
-
             final List<MinorAlleleFractionRecord> segments = tumorSegments.containsKey(sample) ? tumorSegments.get(sample).getOverlaps(vc).stream().collect(Collectors.toList())
                     : Collections.emptyList();
 
@@ -49,12 +44,12 @@ public class GermlineFilter extends Mutect2VariantFilter {
             final double maf = segments.isEmpty() ? 0.5 : segments.get(0).getMinorAlleleFraction();
 
             weightedSumOfMafs.add(maf * MathUtils.sum(tumorGenotype.getAD()));
-        }
+        });
 
-        final double[] altAlleleFractions = weightedAverageOfTumorAFs(vc, filteringInfo.getNormalSamples());
+        final double[] altAlleleFractions = filteringInfo.weightedAverageOfTumorAFs(vc);
 
         // note that this includes the ref
-        final int[] alleleCounts = sumADsOverSamples(vc, filteringInfo.getNormalSamples(), true, false);
+        final int[] alleleCounts = filteringInfo.sumADsOverSamples(vc, true, false);
 
         // weighted average of sample minor allele fractions.  This is the expected allele fraction of a germline het in the aggregated read counts
         final double maf = weightedSumOfMafs.getValue() / MathUtils.sum(alleleCounts);

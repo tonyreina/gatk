@@ -21,21 +21,15 @@ public class ReadOrientationFilter extends Mutect2VariantFilter {
 
         final List<ImmutablePair<Integer, Double>> depthsAndPosteriors = new ArrayList<>();
 
-        for (final Genotype tumorGenotype : vc.getGenotypes()) {
-            if (filteringInfo.getNormalSamples().contains(tumorGenotype.getSampleName())) {
-                continue;
-            }
+        vc.getGenotypes().stream().filter(filteringInfo::isTumor)
+                .filter(g -> g.hasExtendedAttribute(GATKVCFConstants.ROF_POSTERIOR_KEY) && g.hasExtendedAttribute(GATKVCFConstants.ROF_PRIOR_KEY))
+                .forEach(g -> {
+                    final double artifactPosterior = GATKProtectedVariantContextUtils.getAttributeAsDouble(g, GATKVCFConstants.ROF_POSTERIOR_KEY, 0.0);
+                    final int[] ADs = g.getAD();
+                    final int altCount = (int) MathUtils.sum(ADs) - ADs[0];
 
-            if (! tumorGenotype.hasExtendedAttribute(GATKVCFConstants.ROF_POSTERIOR_KEY) || ! tumorGenotype.hasExtendedAttribute(GATKVCFConstants.ROF_PRIOR_KEY)){
-                continue;
-            }
-
-            final double artifactPosterior = GATKProtectedVariantContextUtils.getAttributeAsDouble(tumorGenotype, GATKVCFConstants.ROF_POSTERIOR_KEY, 0.0);
-            final int[] ADs = tumorGenotype.getAD();
-            final int altCount = (int) MathUtils.sum(ADs) - ADs[0];
-
-            depthsAndPosteriors.add(ImmutablePair.of(altCount, artifactPosterior));
-        }
+                    depthsAndPosteriors.add(ImmutablePair.of(altCount, artifactPosterior));
+                });
 
         final double artifactPosterior = weightedMedianPosteriorProbability(depthsAndPosteriors);
         return artifactPosterior;

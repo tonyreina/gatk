@@ -35,7 +35,7 @@ public class PolymeraseSlippageFilter extends Mutect2VariantFilter {
         if (referenceSTRBaseCount >= minSlippageLength && Math.abs(numPCRSlips) == 1) {
             // calculate the p-value that out of n reads we would have at least k slippage reads
             // if this p-value is small we keep the variant (reject the PCR slippage hypothesis)
-            final int[] ADs = sumADsOverSamples(vc, filteringInfo.getNormalSamples(), true, false);
+            final int[] ADs = filteringInfo.sumADsOverSamples(vc, true, false);
             if (ADs == null || ADs.length < 2) {
                 return 0;
             }

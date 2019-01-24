@@ -28,6 +28,10 @@ public abstract class Mutect2VariantFilter {
     protected void accumulateDataForLearning(final VariantContext vc, final Mutect2FilteringInfo filteringInfo) { }
     protected void clearAccumulatedData() { }
     protected void learnParameters() { }
+    protected void learnParametersAndClearAccumulatedData() {
+        learnParameters();
+        clearAccumulatedData();
+    }
 
     // by default assume that anything filtered is a technical artifact, but some filters, for example the germline and
     // contamination filters involve evidence of real, non-somatic variation.  These should not inform our models of
@@ -39,34 +43,6 @@ public abstract class Mutect2VariantFilter {
     public abstract Optional<String> phredScaledPosteriorAnnotationName();
 
     protected abstract List<String> requiredAnnotations();
-
-    protected static int[] sumADsOverSamples(final VariantContext vc, final Set<String> normalSamples, final boolean includeTumor, final boolean includeNormal) {
-        final int[] ADs = new int[vc.getNAlleles()];
-        vc.getGenotypes().stream()
-                .filter(g -> includeTumor || normalSamples.contains(g.getSampleName()))
-                .filter(g -> includeNormal || !normalSamples.contains(g.getSampleName()))
-                .map(Genotype::getAD).forEach(ad -> new IndexRange(0, vc.getNAlleles()).forEach(n -> ADs[n] += ad[n]));
-        return ADs;
-    }
-
-    protected static double[] weightedAverageOfTumorAFs(final VariantContext vc, final Set<String> normalSamples) {
-        double totalWeight = 0.0;
-        final double[] AFs = new double[vc.getNAlleles() - 1];
-        for (final Genotype g : vc.getGenotypes()) {
-            if (normalSamples.contains(g.getSampleName())) {
-                continue;
-            } else {
-                final double weight = MathUtils.sum(g.getAD());
-                totalWeight += weight;
-                final double[] sampleAFs = GATKProtectedVariantContextUtils.getAttributeAsDoubleArray(g, VCFConstants.ALLELE_FREQUENCY_KEY,
-                        () -> new double[] {0.0}, 0.0);
-                MathArrays.scaleInPlace(weight, sampleAFs);
-                MathUtils.addToArrayInPlace(AFs, sampleAFs);
-            }
-        }
-        MathArrays.scaleInPlace(1/totalWeight, AFs);
-        return AFs;
-    }
 
     // weighted median -- what's the lowest posterior probability that accounts for samples with half of the total alt depth
     protected static double weightedMedianPosteriorProbability(List<ImmutablePair<Integer, Double>> depthsAndPosteriors) {

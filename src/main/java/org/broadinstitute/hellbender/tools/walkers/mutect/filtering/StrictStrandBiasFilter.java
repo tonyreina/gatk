@@ -25,21 +25,17 @@ public class StrictStrandBiasFilter extends HardFilter {
         final MutableInt altForwardCount = new MutableInt(0);
         final MutableInt altReverseCount = new MutableInt(0);
 
-        for (final Genotype g : vc.getGenotypes()) {
-            if (filteringInfo.getNormalSamples().contains(g.getSampleName())) {
-                continue;
-            } else if (!g.hasExtendedAttribute(GATKVCFConstants.STRAND_BIAS_BY_SAMPLE_KEY)) {
-                return false;
-            } else {
-                final int[] strandBiasCounts = GATKProtectedVariantContextUtils.getAttributeAsIntArray(g, GATKVCFConstants.STRAND_BIAS_BY_SAMPLE_KEY, () -> null, 0);
-                altForwardCount.add(StrandBiasBySample.getAltForwardCountFromFlattenedContingencyTable(strandBiasCounts));
-                altReverseCount.add(StrandBiasBySample.getAltReverseCountFromFlattenedContingencyTable(strandBiasCounts));
-            }
-        }
+        vc.getGenotypes().stream().filter(filteringInfo::isTumor)
+                .filter(g -> g.hasExtendedAttribute(GATKVCFConstants.STRAND_BIAS_BY_SAMPLE_KEY))
+                .forEach(g -> {
+                    final int[] strandBiasCounts = GATKProtectedVariantContextUtils.getAttributeAsIntArray(g, GATKVCFConstants.STRAND_BIAS_BY_SAMPLE_KEY, () -> null, 0);
+                    altForwardCount.add(StrandBiasBySample.getAltForwardCountFromFlattenedContingencyTable(strandBiasCounts));
+                    altReverseCount.add(StrandBiasBySample.getAltReverseCountFromFlattenedContingencyTable(strandBiasCounts));
+                });
 
-        // filter if there is no alt evidence in the forward or reverse strand
+    // filter if there is no alt evidence in the forward or reverse strand
         return Math.min(altForwardCount.getValue(), altReverseCount.getValue()) >= minReadsOnEachStrand;
-    }
+}
 
     @Override
     public String filterName() {
