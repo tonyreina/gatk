@@ -1,6 +1,5 @@
 package org.broadinstitute.hellbender.tools.walkers.mutect.filtering;
 
-import htsjdk.variant.variantcontext.Genotype;
 import htsjdk.variant.variantcontext.VariantContext;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.broadinstitute.hellbender.utils.GATKProtectedVariantContextUtils;
@@ -13,7 +12,7 @@ import java.util.List;
 import java.util.Optional;
 
 public class ReadOrientationFilter extends Mutect2VariantFilter {
-    public double calculateArtifactProbability(final VariantContext vc, final Mutect2FilteringInfo filteringInfo) {
+    public double calculateArtifactProbability(final VariantContext vc, final Mutect2FilteringEngine filteringInfo) {
 
         if (! vc.isSNP()){
             return 0;

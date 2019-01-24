@@ -1,6 +1,5 @@
 package org.broadinstitute.hellbender.tools.walkers.mutect.filtering;
 
-import htsjdk.variant.variantcontext.Genotype;
 import htsjdk.variant.variantcontext.VariantContext;
 import org.apache.commons.lang3.mutable.MutableInt;
 import org.broadinstitute.hellbender.tools.walkers.annotator.StrandBiasBySample;
@@ -17,7 +16,7 @@ public class StrictStrandBiasFilter extends HardFilter {
         this.minReadsOnEachStrand = minReadsOnEachStrand;
     }
     @Override
-    public boolean isArtifact(final VariantContext vc, final Mutect2FilteringInfo filteringInfo) {
+    public boolean isArtifact(final VariantContext vc, final Mutect2FilteringEngine filteringInfo) {
         if (minReadsOnEachStrand == 0) {
             return false;
         }

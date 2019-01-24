@@ -91,7 +91,7 @@ public final class FilterMutectCalls extends MultiplePassVariantWalker {
 
     private VariantContextWriter vcfWriter;
 
-    private Mutect2FilteringInfo filteringInfo;
+    private Mutect2FilteringEngine filteringInfo;
 
     private static final int NUMBER_OF_LEARNING_PASSES = 2;
 
@@ -117,7 +117,7 @@ public final class FilterMutectCalls extends MultiplePassVariantWalker {
 
         final File mutect2StatsTable = new File(statsTable == null ? drivingVariantFile + Mutect2.DEFAULT_STATS_EXTENSION : statsTable);
 
-        filteringInfo = new Mutect2FilteringInfo(MTFAC, vcfHeader);
+        filteringInfo = new Mutect2FilteringEngine(MTFAC, vcfHeader);
         if (mutect2StatsTable.exists()) {
             filteringInfo.inputMutectStats(mutect2StatsTable);
         } else {

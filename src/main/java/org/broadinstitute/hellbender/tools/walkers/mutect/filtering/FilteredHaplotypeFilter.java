@@ -20,13 +20,13 @@ public class FilteredHaplotypeFilter extends HardFilter {
         this.maxIntraHaplotypeDistance = maxIntraHaplotypeDistance;
     }
     @Override
-    public boolean isArtifact(final VariantContext vc, final Mutect2FilteringInfo filteringInfo) {
+    public boolean isArtifact(final VariantContext vc, final Mutect2FilteringEngine filteringInfo) {
         // use phasing of tumor genotype with greatest allele fraction
         final Genotype tumorGenotype = vc.getGenotypes().stream().filter(filteringInfo::isTumor)
                 .max(Comparator.comparingDouble(g -> MathUtils.arrayMax(GATKProtectedVariantContextUtils.getAttributeAsDoubleArray(g, VCFConstants.ALLELE_FREQUENCY_KEY,
                         () -> new double[] {0.0}, 0.0)))).get();
 
-        if (!Mutect2FilteringInfo.hasPhaseInfo(tumorGenotype)) {
+        if (!Mutect2FilteringEngine.hasPhaseInfo(tumorGenotype)) {
             return false;
         }
 

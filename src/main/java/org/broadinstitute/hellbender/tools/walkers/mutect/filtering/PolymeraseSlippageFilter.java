@@ -21,7 +21,7 @@ public class PolymeraseSlippageFilter extends Mutect2VariantFilter {
         this.slippageRate = slippageRate;
     }
     @Override
-    public double calculateArtifactProbability(final VariantContext vc, final Mutect2FilteringInfo filteringInfo) {
+    public double calculateArtifactProbability(final VariantContext vc, final Mutect2FilteringEngine filteringInfo) {
 
         final int[] rpa = vc.getAttributeAsList(GATKVCFConstants.REPEATS_PER_ALLELE_KEY).stream()
                 .mapToInt(o -> Integer.parseInt(String.valueOf(o))).toArray();

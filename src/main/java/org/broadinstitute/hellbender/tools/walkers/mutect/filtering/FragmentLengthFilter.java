@@ -14,7 +14,7 @@ public class FragmentLengthFilter extends HardFilter {
         this.maxMedianFragmentLengthDifference = maxMedianFragmentLengthDifference;
     }
     @Override
-    public boolean isArtifact(final VariantContext vc, final Mutect2FilteringInfo filteringInfo) {
+    public boolean isArtifact(final VariantContext vc, final Mutect2FilteringEngine filteringInfo) {
         final List<Integer> fragmentLengthByAllele = vc.getAttributeAsIntList(FragmentLength.KEY, 0);
 
         return Math.abs(fragmentLengthByAllele.get(1) - fragmentLengthByAllele.get(0)) > maxMedianFragmentLengthDifference;

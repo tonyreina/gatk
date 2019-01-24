@@ -8,7 +8,7 @@ import java.util.List;
 
 public class PanelOfNormalsFilter extends HardFilter {
     @Override
-    public boolean isArtifact(final VariantContext vc, final Mutect2FilteringInfo filteringInfo) {
+    public boolean isArtifact(final VariantContext vc, final Mutect2FilteringEngine filteringInfo) {
         return vc.hasAttribute(GATKVCFConstants.IN_PON_VCF_ATTRIBUTE);
     }
 

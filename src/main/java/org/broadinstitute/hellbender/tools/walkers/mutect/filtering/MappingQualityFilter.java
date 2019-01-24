@@ -17,7 +17,7 @@ public class MappingQualityFilter extends HardFilter {
     }
 
     @Override
-    public boolean isArtifact(final VariantContext vc, final Mutect2FilteringInfo filteringInfo) {
+    public boolean isArtifact(final VariantContext vc, final Mutect2FilteringEngine filteringInfo) {
         final List<Integer> indelLengths = vc.getIndelLengths();
         final int indelLength = indelLengths == null ? 0 : indelLengths.stream().mapToInt(Math::abs).max().orElseGet(() -> 0);
         final List<Integer> mappingQualityByAllele = vc.getAttributeAsIntList(MappingQuality.KEY, 0);

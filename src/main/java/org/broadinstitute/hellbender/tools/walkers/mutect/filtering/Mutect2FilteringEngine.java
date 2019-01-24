@@ -26,7 +26,7 @@ import java.util.stream.Collectors;
  * Simple class to hold all information needed by Mutect2 filters, including: the M2FilteringArgumentCollection,
  * the set of normal samples, the samples' contamination, and the tumor sample CNV segments
  */
-public class Mutect2FilteringInfo {
+public class Mutect2FilteringEngine {
     private static final double EPSILON = 1.0e-10;
 
     private final List<Mutect2VariantFilter> filters = new ArrayList<>();
@@ -50,7 +50,7 @@ public class Mutect2FilteringInfo {
     private final OutputStats outputStats = new OutputStats();
     private final SomaticPriorModel somaticPriorModel;
 
-    public Mutect2FilteringInfo(M2FiltersArgumentCollection MTFAC, final VCFHeader vcfHeader) {
+    public Mutect2FilteringEngine(M2FiltersArgumentCollection MTFAC, final VCFHeader vcfHeader) {
         thresholdCalculator = new ThresholdCalculator(MTFAC.thresholdStrategy, MTFAC.initialPosteriorThreshold, MTFAC.maxFalsePositiveRate, MTFAC.fScoreBeta);
         somaticPriorModel = new SomaticPriorModel(MTFAC.log10PriorProbOfSomaticSNV, MTFAC.log10PriorProbOfSomaticIndel, MTFAC.initialPriorOfArtifactVersusVariant);
 
@@ -119,7 +119,7 @@ public class Mutect2FilteringInfo {
     private void recordFilteredHaplotypes(final VariantContext vc) {
         final Map<String, Set<String>> phasedGTsForEachPhaseID = vc.getGenotypes().stream()
                 .filter(gt -> !normalSamples.contains(gt.getSampleName()))
-                .filter(Mutect2FilteringInfo::hasPhaseInfo)
+                .filter(Mutect2FilteringEngine::hasPhaseInfo)
                 .collect(Collectors.groupingBy(g -> (String) g.getExtendedAttribute(GATKVCFConstants.HAPLOTYPE_CALLER_PHASING_ID_KEY, ""),
                         Collectors.mapping(g -> (String) g.getExtendedAttribute(GATKVCFConstants.HAPLOTYPE_CALLER_PHASING_GT_KEY, ""), Collectors.toSet())));
 

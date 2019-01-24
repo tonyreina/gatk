@@ -16,7 +16,7 @@ public class NormalArtifactFilter extends Mutect2VariantFilter {
     private static final int IMPUTED_NORMAL_BASE_QUALITY = 30;  // only used if normal base quality annotation fails somehow
 
     @Override
-    public double calculateArtifactProbability(final VariantContext vc, final Mutect2FilteringInfo filteringInfo) {
+    public double calculateArtifactProbability(final VariantContext vc, final Mutect2FilteringEngine filteringInfo) {
         final double[] tumorLods = GATKProtectedVariantContextUtils.getAttributeAsDoubleArray(vc, GATKVCFConstants.TUMOR_LOD_KEY);
         final int indexOfMaxTumorLod = MathUtils.maxElementIndex(tumorLods);
 

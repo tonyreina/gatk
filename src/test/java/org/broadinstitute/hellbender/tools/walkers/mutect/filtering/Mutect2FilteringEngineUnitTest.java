@@ -5,7 +5,7 @@ import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
-public class Mutect2FilteringInfoUnitTest {
+public class Mutect2FilteringEngineUnitTest {
     @DataProvider(name = "falsePositiveRateData")
     public Object[][] makeFalsePositiveRateData() {
         return new Object[][]{

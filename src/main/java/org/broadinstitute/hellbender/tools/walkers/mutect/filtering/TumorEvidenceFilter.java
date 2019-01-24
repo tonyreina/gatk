@@ -11,7 +11,7 @@ import java.util.Optional;
 
 public class TumorEvidenceFilter extends Mutect2VariantFilter {
     @Override
-    public double calculateArtifactProbability(final VariantContext vc, final Mutect2FilteringInfo filteringInfo) {
+    public double calculateArtifactProbability(final VariantContext vc, final Mutect2FilteringEngine filteringInfo) {
         final double[] tumorLods = GATKProtectedVariantContextUtils.getAttributeAsDoubleArray(vc, GATKVCFConstants.TUMOR_LOD_KEY);
         return posteriorProbabilityOfError(MathUtils.arrayMax(tumorLods), filteringInfo.getLog10PriorOfSomaticVariant(vc));
     }

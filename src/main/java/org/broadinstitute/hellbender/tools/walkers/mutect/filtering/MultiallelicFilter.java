@@ -15,7 +15,7 @@ public class MultiallelicFilter extends HardFilter {
         this.numAltAllelesThreshold = numAltAllelesThreshold;
     }
     @Override
-    public boolean isArtifact(final VariantContext vc, final Mutect2FilteringInfo filteringInfo) {
+    public boolean isArtifact(final VariantContext vc, final Mutect2FilteringEngine filteringInfo) {
         final double[] tumorLods = GATKProtectedVariantContextUtils.getAttributeAsDoubleArray(vc, GATKVCFConstants.TUMOR_LOD_KEY);
 
         final long numPassingAltAlleles = Arrays.stream(tumorLods)

@@ -13,7 +13,7 @@ public class ChimericOriginalAlignmentFilter extends HardFilter {
         this.maxNuMTFraction = maxNuMTFraction;
     }
     @Override
-    public boolean isArtifact(final VariantContext vc, final Mutect2FilteringInfo filteringInfo) {
+    public boolean isArtifact(final VariantContext vc, final Mutect2FilteringEngine filteringInfo) {
         if(!vc.isBiallelic()) {
             return false;
         }

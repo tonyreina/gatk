@@ -1,31 +1,25 @@
 package org.broadinstitute.hellbender.tools.walkers.mutect.filtering;
 
 import com.google.common.annotations.VisibleForTesting;
-import htsjdk.variant.variantcontext.Genotype;
 import htsjdk.variant.variantcontext.VariantContext;
-import htsjdk.variant.vcf.VCFConstants;
 import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.apache.commons.math3.util.MathArrays;
-import org.broadinstitute.hellbender.utils.GATKProtectedVariantContextUtils;
-import org.broadinstitute.hellbender.utils.IndexRange;
 import org.broadinstitute.hellbender.utils.MathUtils;
 
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 
 public abstract class Mutect2VariantFilter {
     public Mutect2VariantFilter() { }
 
-    public double artifactProbability(final VariantContext vc, final Mutect2FilteringInfo filteringInfo) {
+    public double artifactProbability(final VariantContext vc, final Mutect2FilteringEngine filteringInfo) {
         return requiredAnnotations().stream().allMatch(vc::hasAttribute) ? calculateArtifactProbability(vc, filteringInfo) : 0;
     }
 
-    protected abstract double calculateArtifactProbability(final VariantContext vc, final Mutect2FilteringInfo filteringInfo);
+    protected abstract double calculateArtifactProbability(final VariantContext vc, final Mutect2FilteringEngine filteringInfo);
 
     // by default do nothing, but we may override to allow some filters to learn their parameters in the first pass of {@link FilterMutectCalls}
-    protected void accumulateDataForLearning(final VariantContext vc, final Mutect2FilteringInfo filteringInfo) { }
+    protected void accumulateDataForLearning(final VariantContext vc, final Mutect2FilteringEngine filteringInfo) { }
     protected void clearAccumulatedData() { }
     protected void learnParameters() { }
     protected void learnParametersAndClearAccumulatedData() {

@@ -14,7 +14,7 @@ public class ReadPositionFilter extends HardFilter {
         this.minMedianReadPosition = minMedianReadPosition;
     }
     @Override
-    public boolean isArtifact(final VariantContext vc, final Mutect2FilteringInfo filteringInfo) {
+    public boolean isArtifact(final VariantContext vc, final Mutect2FilteringEngine filteringInfo) {
         final List<Integer> readPositionByAllele = vc.getAttributeAsIntList(ReadPosition.KEY, 0);
 
         // a negative value is possible due to a bug: https://github.com/broadinstitute/gatk/issues/5492

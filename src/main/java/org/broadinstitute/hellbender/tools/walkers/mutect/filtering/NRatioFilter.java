@@ -14,7 +14,7 @@ public class NRatioFilter extends HardFilter {
         this.maxNRatio = maxNRatio;
     }
     @Override
-    public boolean isArtifact(final VariantContext vc, final Mutect2FilteringInfo filteringInfo) {
+    public boolean isArtifact(final VariantContext vc, final Mutect2FilteringEngine filteringInfo) {
         final int[] ADs = filteringInfo.sumADsOverSamples(vc, true, true);
         final int altCount = (int) MathUtils.sum(ADs) - ADs[0];
 
