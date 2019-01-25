@@ -27,16 +27,10 @@ import java.util.stream.Collectors;
  * the set of normal samples, the samples' contamination, and the tumor sample CNV segments
  */
 public class Mutect2FilteringEngine {
-    private static final double EPSILON = 1.0e-10;
+    public static final double EPSILON = 1.0e-10;
 
     private final List<Mutect2VariantFilter> filters = new ArrayList<>();
-
-    /**
-     * CONSTANT PARAMETERS
-     */
     private final Set<String> normalSamples;
-    private OptionalLong totalCallableSites = OptionalLong.empty();
-
 
     // TODO: make this private to BadHaplotypeFilter
     // TODO: make it probabilistic and eliminate the FIRST_PASS_THRESHOLD
@@ -47,7 +41,7 @@ public class Mutect2FilteringEngine {
      * DATA ACCUMULATED AND LEARNED ON EACH PASS OF {@link FilterMutectCalls}
      */
     private final ThresholdCalculator thresholdCalculator;
-    private final OutputStats outputStats = new OutputStats();
+    private final FilteringOutputStats filteringOutputStats;
     private final SomaticPriorModel somaticPriorModel;
 
     public Mutect2FilteringEngine(M2FiltersArgumentCollection MTFAC, final VCFHeader vcfHeader, final File mutectStatsTable) {
@@ -63,6 +57,7 @@ public class Mutect2FilteringEngine {
         filteredPhasedCalls = new HashMap<>();
 
         buildFiltersList(MTFAC);
+        filteringOutputStats = new FilteringOutputStats(filters);
     }
 
     private void buildFiltersList(final M2FiltersArgumentCollection MTFAC) {
@@ -161,7 +156,7 @@ public class Mutect2FilteringEngine {
         somaticPriorModel.learnAndClearAccumulatedData();
         thresholdCalculator.relearnThresholdAndClearAcumulatedProbabilities();
 
-        outputStats.clear();
+        filteringOutputStats.clear();
     }
 
     public VariantContext applyFiltersAndAccumulateOutputStats(final VariantContext vc) {
@@ -174,7 +169,7 @@ public class Mutect2FilteringEngine {
 
         final boolean filtered = overallArtifactProbability > getArtifactProbabilityThreshold() - EPSILON;
 
-        outputStats.recordCall(filtered, overallArtifactProbability, artifactProbabilities);
+        filteringOutputStats.recordCall(filtered, overallArtifactProbability, artifactProbabilities, getArtifactProbabilityThreshold());
 
         for (final Map.Entry<Mutect2VariantFilter, Double> entry : artifactProbabilities.entrySet()) {
             final double artifactProbability = entry.getValue();
@@ -195,7 +190,7 @@ public class Mutect2FilteringEngine {
     }
 
     public void writeFilteringStats(final File filteringStatsFile) {
-        outputStats.writeFilteringStats(filteringStatsFile);
+        filteringOutputStats.writeFilteringStats(filteringStatsFile, getArtifactProbabilityThreshold());
     }
 
     public int[] sumADsOverSamples(final VariantContext vc, final boolean includeTumor, final boolean includeNormal) {
@@ -218,67 +213,6 @@ public class Mutect2FilteringEngine {
         });
         MathArrays.scaleInPlace(1/totalWeight.getValue(), AFs);
         return AFs;
-    }
-
-    /**
-     * Helper class used on the final pass of {@link FilterMutectCalls} to record total expected true positives, false positives,
-     * and false negatives, as well as false positives and false negatives attributable to each filter
-     */
-    private class OutputStats {
-        private int pass = 0;
-        private double TPs = 0;
-        private double FPs = 0;
-        private double FNs = 0;
-
-        private Map<Mutect2VariantFilter, MutableDouble> filterFPs = makeEmptyFilterCounts();
-        private Map<Mutect2VariantFilter, MutableDouble> filterFNs = makeEmptyFilterCounts();
-
-        public void recordCall(final boolean filtered, final double artifactProbability,
-                               final Map<Mutect2VariantFilter, Double> artifactProbabilities) {
-            if (filtered) {
-                FNs += 1 - artifactProbability;
-            } else {
-                pass++;
-                FPs += artifactProbability;
-                TPs += 1 - artifactProbability;
-            }
-
-            for (final Map.Entry<Mutect2VariantFilter, Double> entry : artifactProbabilities.entrySet()) {
-                final double filterArtifactProbability = entry.getValue();
-                if (filterArtifactProbability > EPSILON && filterArtifactProbability > getArtifactProbabilityThreshold() - EPSILON) {
-                    filterFNs.get(entry.getKey()).add(1 - artifactProbability);
-                } else if (!filtered) {
-                    filterFPs.get(entry.getKey()).add(filterArtifactProbability);
-                }
-            }
-        }
-
-        public void writeFilteringStats(final File filteringStatsFile) {
-            final double totalTrueVariants = TPs + FNs;
-
-            final List<FilterStats> filterStats = filters.stream()
-                    .map(f -> new FilterStats(f.filterName(), filterFPs.get(f).getValue(), filterFPs.get(f).getValue() / pass,
-                            filterFNs.get(f).getValue(), filterFNs.get(f).getValue() / totalTrueVariants))
-                    .filter(stats -> stats.getFalsePositiveCount() > 0 || stats.getFalseNegativeCount() > 0)
-                    .collect(Collectors.toList());
-
-            FilterStats.writeM2FilterSummary(filterStats, filteringStatsFile, getArtifactProbabilityThreshold(), pass, TPs, FPs, FNs);
-        }
-
-        private Map<Mutect2VariantFilter, MutableDouble> makeEmptyFilterCounts() {
-            return filters.stream().collect(Collectors.toMap(f -> f, f -> new MutableDouble(0)));
-        }
-
-
-        public void clear() {
-            pass = 0;
-            TPs = 0;
-            FPs = 0;
-            FNs = 0;
-
-            filterFPs = makeEmptyFilterCounts();
-            filterFNs = makeEmptyFilterCounts();
-        }
     }
 
 }
