@@ -12,6 +12,7 @@ import org.broadinstitute.barclay.argparser.CommandLineProgramProperties;
 import org.broadinstitute.barclay.help.DocumentedFeature;
 import org.broadinstitute.hellbender.cmdline.StandardArgumentDefinitions;
 import org.broadinstitute.hellbender.utils.GATKProtectedVariantContextUtils;
+import org.broadinstitute.hellbender.utils.variant.GATKVCFConstants;
 import picard.cmdline.programgroups.VariantEvaluationProgramGroup;
 import org.broadinstitute.hellbender.engine.FeatureContext;
 import org.broadinstitute.hellbender.engine.ReadsContext;
@@ -363,7 +364,17 @@ public final class VariantsToTable extends VariantWalker {
             }
             for ( final String field : asGenotypeFieldsToTake) {
                 if ( splitMultiAllelic ) {
-                    addFieldValue(split(vc.getGenotype(sample).getExtendedAttribute(field).toString(), ','), records);
+                    if (VCFConstants.GENOTYPE_ALLELE_DEPTHS.equals(field)) {
+                        List<Integer> altDepths = new ArrayList<>();
+                        int[] allDepths = vc.getGenotype(sample).getAD();
+                        for (int i = 1; i < allDepths.length; i++) {
+                            altDepths.add(allDepths[i]);
+                        }
+                        addFieldValue(altDepths, records);
+                    }
+                    else {
+                        addFieldValue(split(vc.getGenotype(sample).getExtendedAttribute(field).toString(), ','), records);
+                    }
                 }
             }
         }
