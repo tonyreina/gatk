@@ -200,12 +200,7 @@ public class AnalyzeMITESeq extends GATKTool {
             }
         }
 
-        variationEntries.sort((a,b) -> {
-            int result = Integer.compare(b.getQualSum(), a.getQualSum()); // descending order of qualSum
-            if ( result == 0 ) result = Long.compare(b.getCount(), a.getCount()); // descending order of count
-            if ( result == 0 ) result = a.compareTo(b);
-            return result;
-        });
+        variationEntries.sort((a,b) -> a.compareTo(b));
 
         return variationEntries;
     }
@@ -215,14 +210,14 @@ public class AnalyzeMITESeq extends GATKTool {
         try (final OutputStreamWriter writer =
                      new OutputStreamWriter(new BufferedOutputStream(BucketUtils.createFile(variantsFile)))) {
             for (final SNVCollectionCount entry : variationEntries) {
-                writer.write(Integer.toString(entry.getQualSum()));
-                writer.write('\t');
                 writer.write(Long.toString(entry.getCount()));
                 writer.write('\t');
                 final List<SNV> snvs = entry.getSNVs();
                 final int start = snvs.get(0).getRefIndex() - flankingLength;
                 final int end = snvs.get(snvs.size() - 1).getRefIndex() + flankingLength;
                 writer.write(Long.toString(intervalCounter.countSpanners(start, end)));
+                writer.write('\t');
+                writer.write(Integer.toString(entry.getQualSum()));
                 writer.write('\t');
                 writer.write(Integer.toString(snvs.size()));
                 String sep = "\t";
