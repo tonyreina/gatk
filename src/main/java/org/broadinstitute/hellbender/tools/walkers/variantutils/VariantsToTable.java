@@ -11,6 +11,7 @@ import org.broadinstitute.barclay.argparser.Argument;
 import org.broadinstitute.barclay.argparser.CommandLineProgramProperties;
 import org.broadinstitute.barclay.help.DocumentedFeature;
 import org.broadinstitute.hellbender.cmdline.StandardArgumentDefinitions;
+import org.broadinstitute.hellbender.utils.GATKProtectedVariantContextUtils;
 import picard.cmdline.programgroups.VariantEvaluationProgramGroup;
 import org.broadinstitute.hellbender.engine.FeatureContext;
 import org.broadinstitute.hellbender.engine.ReadsContext;
@@ -26,6 +27,8 @@ import java.io.PrintStream;
 import java.lang.reflect.Array;
 import java.util.*;
 import java.util.function.Function;
+
+import static org.broadinstitute.hellbender.utils.Utils.split;
 
 /**
  * Extract fields from a VCF file to a tab-delimited table
@@ -128,6 +131,12 @@ public final class VariantsToTable extends VariantWalker {
             shortName="GF",
             doc="The name of a genotype field to include in the output table", optional=true)
     private List<String> genotypeFieldsToTake = new ArrayList<>();
+
+    @Argument(shortName="ASF", doc="The name of an allele-specific INFO field to be split if applicable")
+    private List<String> asFieldsToTake = new ArrayList<>();
+
+    @Argument(shortName="ASGF", doc="The name of an allele-specific INFO field to be split if applicable")
+    private List<String> asGenotypeFieldsToTake = new ArrayList<>();
 
     /**
      * By default this tool only emits values for records where the FILTER field is either PASS or . (unfiltered).
@@ -318,6 +327,12 @@ public final class VariantsToTable extends VariantWalker {
             }
         }
 
+        for ( final String field : asFieldsToTake) {
+            if ( splitMultiAllelic ) {
+                addFieldValue(split(vc.getAttributeAsString(field, "."), ','), records);
+            }
+        }
+
         if ( addGenotypeFields ) {
             addGenotypeFieldsToRecords(vc, records, errorIfMissingData);
         }
@@ -344,6 +359,11 @@ public final class VariantsToTable extends VariantWalker {
                         }                    }
                 } else {
                     handleMissingData(errorIfMissingData, gf, records, vc);
+                }
+            }
+            for ( final String field : asGenotypeFieldsToTake) {
+                if ( splitMultiAllelic ) {
+                    addFieldValue(split(vc.getGenotype(sample).getExtendedAttribute(field).toString(), ','), records);
                 }
             }
         }
