@@ -132,10 +132,10 @@ public final class VariantsToTable extends VariantWalker {
             doc="The name of a genotype field to include in the output table", optional=true)
     private List<String> genotypeFieldsToTake = new ArrayList<>();
 
-    @Argument(shortName="ASF", doc="The name of an allele-specific INFO field to be split if applicable")
+    @Argument(shortName="ASF", doc="The name of an allele-specific INFO field to be split if applicable", optional=true)
     private List<String> asFieldsToTake = new ArrayList<>();
 
-    @Argument(shortName="ASGF", doc="The name of an allele-specific INFO field to be split if applicable")
+    @Argument(shortName="ASGF", doc="The name of an allele-specific INFO field to be split if applicable", optional=true)
     private List<String> asGenotypeFieldsToTake = new ArrayList<>();
 
     /**
