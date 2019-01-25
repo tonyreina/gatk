@@ -242,7 +242,7 @@ public class FuncotatorDataSourceDownloader extends CommandLineProgram {
 
         // verify the hashes are the same:
         if ( !results.isDestFileValid() ) {
-            throw new UserException("ERROR: downloaded data sources are corrupt!  Unexpected checksum: " + results.getChecksum() + " != " + results.getExpectedChecksum());
+            throw new UserException("Error: downloaded data sources are corrupt!  Unexpected checksum: " + results.getChecksum() + " != " + results.getExpectedChecksum());
         }
         else {
             logger.info("Integrity check on downloaded data sources succeeded.");

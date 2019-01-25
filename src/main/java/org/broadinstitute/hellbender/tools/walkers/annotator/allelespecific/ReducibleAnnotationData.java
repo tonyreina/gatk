@@ -83,13 +83,13 @@ public class ReducibleAnnotationData<T> {
         for (final Allele a : this.getAlleles()) {
             if (a.isReference()) {
                 if (foundRef) {
-                    throw new GATKException("ERROR: multiple reference alleles found in annotation data\n");
+                    throw new GATKException("Error: multiple reference alleles found in annotation data\n");
                 }
                 foundRef = true;
             }
         }
         if (!foundRef) {
-            throw new GATKException("ERROR: no reference alleles found in annotation data\n");
+            throw new GATKException("Error: no reference alleles found in annotation data\n");
         }
     }
 

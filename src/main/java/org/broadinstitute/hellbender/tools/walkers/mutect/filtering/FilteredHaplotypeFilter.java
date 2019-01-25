@@ -19,6 +19,10 @@ public class FilteredHaplotypeFilter extends HardFilter {
     public FilteredHaplotypeFilter(final double maxIntraHaplotypeDistance) {
         this.maxIntraHaplotypeDistance = maxIntraHaplotypeDistance;
     }
+
+    @Override
+    public ErrorType errorType() { return ErrorType.ARTIFACT; }
+
     @Override
     public boolean isArtifact(final VariantContext vc, final Mutect2FilteringEngine filteringInfo) {
         // use phasing of tumor genotype with greatest allele fraction

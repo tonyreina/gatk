@@ -12,11 +12,11 @@ import java.util.Optional;
 public abstract class Mutect2VariantFilter {
     public Mutect2VariantFilter() { }
 
-    public double artifactProbability(final VariantContext vc, final Mutect2FilteringEngine filteringInfo) {
-        return requiredAnnotations().stream().allMatch(vc::hasAttribute) ? calculateArtifactProbability(vc, filteringInfo) : 0;
+    public double errorProbability(final VariantContext vc, final Mutect2FilteringEngine filteringInfo) {
+        return requiredAnnotations().stream().allMatch(vc::hasAttribute) ? calculateErrorProbability(vc, filteringInfo) : 0;
     }
 
-    protected abstract double calculateArtifactProbability(final VariantContext vc, final Mutect2FilteringEngine filteringInfo);
+    protected abstract double calculateErrorProbability(final VariantContext vc, final Mutect2FilteringEngine filteringInfo);
 
     // by default do nothing, but we may override to allow some filters to learn their parameters in the first pass of {@link FilterMutectCalls}
     protected void accumulateDataForLearning(final VariantContext vc, final Mutect2FilteringEngine filteringInfo) { }
@@ -27,10 +27,7 @@ public abstract class Mutect2VariantFilter {
         clearAccumulatedData();
     }
 
-    // by default assume that anything filtered is a technical artifact, but some filters, for example the germline and
-    // contamination filters involve evidence of real, non-somatic variation.  These should not inform our models of
-    // technical artifacts.
-    public boolean isTechnicalArtifact() { return true; }
+    public abstract ErrorType errorType();
 
     public abstract String filterName();
 

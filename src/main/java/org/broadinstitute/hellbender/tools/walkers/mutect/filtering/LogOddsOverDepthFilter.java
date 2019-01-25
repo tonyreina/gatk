@@ -13,6 +13,10 @@ public class LogOddsOverDepthFilter extends HardFilter {
     public LogOddsOverDepthFilter(final double minLog10OddsDividedByDepth) {
         this.minLog10OddsDividedByDepth = minLog10OddsDividedByDepth;
     }
+
+    @Override
+    public ErrorType errorType() { return ErrorType.ARTIFACT; }
+
     @Override
     public boolean isArtifact(final VariantContext vc, final Mutect2FilteringEngine filteringInfo) {
         if(!vc.isBiallelic()) {

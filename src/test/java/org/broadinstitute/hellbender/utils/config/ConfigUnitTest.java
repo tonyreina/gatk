@@ -112,7 +112,7 @@ public class ConfigUnitTest extends GATKBaseTest {
             properties.load(inputStream);
         }
         catch (final Exception ex) {
-            throw new GATKException("ERROR OPENING TEST FILE: " + outFile, ex);
+            throw new GATKException("Error OPENING TEST FILE: " + outFile, ex);
         }
 
         // Validate the properties

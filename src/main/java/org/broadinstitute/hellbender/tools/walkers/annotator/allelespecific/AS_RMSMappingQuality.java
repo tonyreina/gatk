@@ -219,7 +219,7 @@ public final class AS_RMSMappingQuality extends InfoFieldAnnotation implements A
             if (perAlleleValues.containsKey(current)) {
                 annotationString += String.format(printFormat, Math.sqrt((double) perAlleleValues.get(current) / variantADs.get(current)));
             } else {
-                allele_logger.warn("ERROR: VC allele is not found in annotation alleles -- maybe there was trimming?");
+                allele_logger.warn("Error: VC allele is not found in annotation alleles -- maybe there was trimming?");
             }
         }
         return annotationString;

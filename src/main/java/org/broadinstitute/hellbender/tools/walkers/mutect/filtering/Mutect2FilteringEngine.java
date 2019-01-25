@@ -60,6 +60,121 @@ public class Mutect2FilteringEngine {
         filteringOutputStats = new FilteringOutputStats(filters);
     }
 
+    //THE FOLLOWING ARE HELPER METHODS FOR FILTERS THAT IMPLEMENT {@link Mutect2VariantFilter}
+    public boolean isNormal(final Genotype genotype) { return normalSamples.contains(genotype.getSampleName()); }
+
+    public boolean isTumor(final Genotype genotype) { return !isNormal(genotype); }
+
+    public Map<String, ImmutablePair<Integer, Set<String>>> getFilteredPhasedCalls() {
+        return filteredPhasedCalls;
+    }
+
+    public double getArtifactProbabilityThreshold() { return thresholdCalculator.getThreshold(); }
+
+    public double getLog10PriorOfSomaticVariant(final VariantContext vc) {
+        return somaticPriorModel.getLog10PriorOfSomaticVariant(vc);
+    }
+
+    public double getPriorProbOfArtifactVersusVariant() {
+        return somaticPriorModel.getPriorProbOfArtifactVersusVariant();
+    }
+
+    public static boolean hasPhaseInfo(final Genotype genotype) {
+        return genotype.hasExtendedAttribute(GATKVCFConstants.HAPLOTYPE_CALLER_PHASING_GT_KEY) && genotype.hasExtendedAttribute(GATKVCFConstants.HAPLOTYPE_CALLER_PHASING_ID_KEY);
+    }
+
+    public int[] sumADsOverSamples(final VariantContext vc, final boolean includeTumor, final boolean includeNormal) {
+        final int[] ADs = new int[vc.getNAlleles()];
+        vc.getGenotypes().stream().filter(g -> (includeTumor && isTumor(g)) || (includeNormal && isNormal(g)))
+                .map(Genotype::getAD).forEach(ad -> new IndexRange(0, vc.getNAlleles()).forEach(n -> ADs[n] += ad[n]));
+        return ADs;
+    }
+
+    public double[] weightedAverageOfTumorAFs(final VariantContext vc) {
+        final MutableDouble totalWeight = new MutableDouble(0);
+        final double[] AFs = new double[vc.getNAlleles() - 1];
+        vc.getGenotypes().stream().filter(this::isTumor).forEach(g ->  {
+            final double weight = MathUtils.sum(g.getAD());
+            totalWeight.add(weight);
+            final double[] sampleAFs = GATKProtectedVariantContextUtils.getAttributeAsDoubleArray(g, VCFConstants.ALLELE_FREQUENCY_KEY,
+                    () -> new double[] {0.0}, 0.0);
+            MathArrays.scaleInPlace(weight, sampleAFs);
+            MathUtils.addToArrayInPlace(AFs, sampleAFs);
+        });
+        MathArrays.scaleInPlace(1/totalWeight.getValue(), AFs);
+        return AFs;
+    }
+    // END HELPER METHODS
+
+    /**
+     * record data from a potential variant in a non-final pass of {@link FilterMutectCalls}
+     */
+    public void accumulateData(final VariantContext vc) {
+        filters.forEach(f -> f.accumulateDataForLearning(vc, this));
+
+        final Pair<Double, Double> overallAndTechnicalArtifactProbs = overallAndTechnicalOnlyArtifactProbabilities(vc);
+        somaticPriorModel.record(vc, overallAndTechnicalArtifactProbs.getLeft(), overallAndTechnicalArtifactProbs.getRight());
+
+        // bad haplotypes and artifact posteriors
+        if (overallAndTechnicalArtifactProbs.getLeft() > getArtifactProbabilityThreshold() - EPSILON) {
+            recordFilteredHaplotypes(vc);
+        }
+
+        thresholdCalculator.addArtifactProbability(overallAndTechnicalArtifactProbs.getLeft());
+    }
+
+    /**
+     * Refine model parameters based on data acquired in a non-final pass of {@link FilterMutectCalls}
+     */
+    public void learnParameters() {
+        filters.forEach(Mutect2VariantFilter::learnParametersAndClearAccumulatedData);
+        somaticPriorModel.learnAndClearAccumulatedData();
+        thresholdCalculator.relearnThresholdAndClearAcumulatedProbabilities();
+
+        filteringOutputStats.clear();
+    }
+
+    /**
+     * Create a filtered variant and record statistics for the final pass of {@link FilterMutectCalls}
+     */
+    public VariantContext applyFiltersAndAccumulateOutputStats(final VariantContext vc) {
+        final VariantContextBuilder vcb = new VariantContextBuilder(vc).filters(new HashSet<>());
+
+        final Map<Mutect2VariantFilter, Double> artifactProbabilities = filters.stream()
+                .collect(Collectors.toMap(f -> f, f -> f.errorProbability(vc, this)));
+
+        final double overallArtifactProbability = overallAndTechnicalOnlyArtifactProbabilities(artifactProbabilities).getLeft();
+
+        final boolean filtered = overallArtifactProbability > getArtifactProbabilityThreshold() - EPSILON;
+
+        filteringOutputStats.recordCall(filtered, overallArtifactProbability, artifactProbabilities, getArtifactProbabilityThreshold());
+
+        for (final Map.Entry<Mutect2VariantFilter, Double> entry : artifactProbabilities.entrySet()) {
+            final double artifactProbability = entry.getValue();
+
+            entry.getKey().phredScaledPosteriorAnnotationName().ifPresent(annotation -> {
+                if (entry.getKey().requiredAnnotations().stream().allMatch(vc::hasAttribute)) {
+                    vcb.attribute(annotation, QualityUtils.errorProbToQual(artifactProbability));
+                }
+            });
+
+            // TODO: clarify this logic
+            if (artifactProbability > EPSILON && artifactProbability > getArtifactProbabilityThreshold() - EPSILON) {
+                vcb.filter(entry.getKey().filterName());
+            }
+        }
+
+        return vcb.make();
+    }
+
+    /**
+     * Write statistics collected in the final pass of {@link FilterMutectCalls}
+     * @param filteringStatsFile
+     */
+    public void writeFilteringStats(final File filteringStatsFile) {
+        filteringOutputStats.writeFilteringStats(filteringStatsFile, getArtifactProbabilityThreshold());
+    }
+
     private void buildFiltersList(final M2FiltersArgumentCollection MTFAC) {
         filters.add(new TumorEvidenceFilter());
         filters.add(new BaseQualityFilter(MTFAC.minMedianBaseQuality));
@@ -87,24 +202,6 @@ public class Mutect2FilteringEngine {
         }
     }
 
-    public boolean isNormal(final Genotype genotype) { return normalSamples.contains(genotype.getSampleName()); }
-
-    public boolean isTumor(final Genotype genotype) { return !isNormal(genotype); }
-
-    public Map<String, ImmutablePair<Integer, Set<String>>> getFilteredPhasedCalls() {
-        return filteredPhasedCalls;
-    }
-
-    public double getArtifactProbabilityThreshold() { return thresholdCalculator.getThreshold(); }
-
-    public double getLog10PriorOfSomaticVariant(final VariantContext vc) {
-        return somaticPriorModel.getLog10PriorOfSomaticVariant(vc);
-    }
-
-    public double getPriorProbOfArtifactVersusVariant() {
-        return somaticPriorModel.getPriorProbOfArtifactVersusVariant();
-    }
-
     private void recordFilteredHaplotypes(final VariantContext vc) {
         final Map<String, Set<String>> phasedGTsForEachPhaseID = vc.getGenotypes().stream()
                 .filter(gt -> !normalSamples.contains(gt.getSampleName()))
@@ -117,19 +214,15 @@ public class Mutect2FilteringEngine {
         }
     }
 
-    public static boolean hasPhaseInfo(final Genotype genotype) {
-        return genotype.hasExtendedAttribute(GATKVCFConstants.HAPLOTYPE_CALLER_PHASING_GT_KEY) && genotype.hasExtendedAttribute(GATKVCFConstants.HAPLOTYPE_CALLER_PHASING_ID_KEY);
-    }
-
     private Pair<Double, Double> overallAndTechnicalOnlyArtifactProbabilities(final VariantContext vc) {
         return overallAndTechnicalOnlyArtifactProbabilities(filters.stream()
-                .collect(Collectors.toMap(f -> f, f -> f.calculateArtifactProbability(vc, this))));
+                .collect(Collectors.toMap(f -> f, f -> f.calculateErrorProbability(vc, this))));
     }
 
     private Pair<Double, Double> overallAndTechnicalOnlyArtifactProbabilities(final Map<Mutect2VariantFilter, Double> map) {
-        final double technicalArtifactProbability = map.entrySet().stream().filter(entry -> entry.getKey().isTechnicalArtifact())
+        final double technicalArtifactProbability = map.entrySet().stream().filter(entry -> entry.getKey().errorType())
                 .mapToDouble(entry -> entry.getValue()).max().orElseGet(() -> 0);
-        final double nonTechnicalArtifactProbability = map.entrySet().stream().filter(entry -> !entry.getKey().isTechnicalArtifact())
+        final double nonTechnicalArtifactProbability = map.entrySet().stream().filter(entry -> !entry.getKey().errorType())
                 .mapToDouble(entry -> entry.getValue()).max().orElseGet(() -> 0);
 
         final double overallProbability = 1 - (1 - technicalArtifactProbability) * (1 - nonTechnicalArtifactProbability);
@@ -137,82 +230,21 @@ public class Mutect2FilteringEngine {
         return ImmutablePair.of(overallProbability, technicalArtifactProbability);
     }
 
-    public void accumulateData(final VariantContext vc) {
-        filters.forEach(f -> f.accumulateDataForLearning(vc, this));
+    private final class ErrorProbabilities {
+        private final Map<Mutect2VariantFilter, Double> probabilitiesByFilter;
+        private final EnumMap<ErrorType, Double> probabilitiesByType;
 
-        final Pair<Double, Double> overallAndTechnicalArtifactProbs = overallAndTechnicalOnlyArtifactProbabilities(vc);
-        somaticPriorModel.record(vc, overallAndTechnicalArtifactProbs.getLeft(), overallAndTechnicalArtifactProbs.getRight());
 
-        // bad haplotypes and artifact posteriors
-        if (overallAndTechnicalArtifactProbs.getLeft() > getArtifactProbabilityThreshold() - EPSILON) {
-            recordFilteredHaplotypes(vc);
+        public ErrorProbabilities(final VariantContext vc) {
+            probabilitiesByFilter = filters.stream().collect(Collectors.toMap(f -> f, f -> f.errorProbability(vc, this)));
+
+            probabilitiesByType = new EnumMap<>(ErrorType.class);
+
+            final Map<ErrorType, List<Map.Entry<Mutect2VariantFilter, Double>>> doogle = probabilitiesByFilter.entrySet().stream().collect(Collectors.groupingBy(entry -> entry.getKey().errorType()));
+
+
         }
-
-        thresholdCalculator.addArtifactProbability(overallAndTechnicalArtifactProbs.getLeft());
     }
 
-    public void learnParameters() {
-        filters.forEach(Mutect2VariantFilter::learnParametersAndClearAccumulatedData);
-        somaticPriorModel.learnAndClearAccumulatedData();
-        thresholdCalculator.relearnThresholdAndClearAcumulatedProbabilities();
-
-        filteringOutputStats.clear();
-    }
-
-    public VariantContext applyFiltersAndAccumulateOutputStats(final VariantContext vc) {
-        final VariantContextBuilder vcb = new VariantContextBuilder(vc).filters(new HashSet<>());
-
-        final Map<Mutect2VariantFilter, Double> artifactProbabilities = filters.stream()
-                .collect(Collectors.toMap(f -> f, f -> f.artifactProbability(vc, this)));
-
-        final double overallArtifactProbability = overallAndTechnicalOnlyArtifactProbabilities(artifactProbabilities).getLeft();
-
-        final boolean filtered = overallArtifactProbability > getArtifactProbabilityThreshold() - EPSILON;
-
-        filteringOutputStats.recordCall(filtered, overallArtifactProbability, artifactProbabilities, getArtifactProbabilityThreshold());
-
-        for (final Map.Entry<Mutect2VariantFilter, Double> entry : artifactProbabilities.entrySet()) {
-            final double artifactProbability = entry.getValue();
-
-            entry.getKey().phredScaledPosteriorAnnotationName().ifPresent(annotation -> {
-                if (entry.getKey().requiredAnnotations().stream().allMatch(vc::hasAttribute)) {
-                    vcb.attribute(annotation, QualityUtils.errorProbToQual(artifactProbability));
-                }
-            });
-
-            // TODO: clarify this logic
-            if (artifactProbability > EPSILON && artifactProbability > getArtifactProbabilityThreshold() - EPSILON) {
-                vcb.filter(entry.getKey().filterName());
-            }
-        }
-
-        return vcb.make();
-    }
-
-    public void writeFilteringStats(final File filteringStatsFile) {
-        filteringOutputStats.writeFilteringStats(filteringStatsFile, getArtifactProbabilityThreshold());
-    }
-
-    public int[] sumADsOverSamples(final VariantContext vc, final boolean includeTumor, final boolean includeNormal) {
-        final int[] ADs = new int[vc.getNAlleles()];
-        vc.getGenotypes().stream().filter(g -> (includeTumor && isTumor(g)) || (includeNormal && isNormal(g)))
-                .map(Genotype::getAD).forEach(ad -> new IndexRange(0, vc.getNAlleles()).forEach(n -> ADs[n] += ad[n]));
-        return ADs;
-    }
-
-    public double[] weightedAverageOfTumorAFs(final VariantContext vc) {
-        final MutableDouble totalWeight = new MutableDouble(0);
-        final double[] AFs = new double[vc.getNAlleles() - 1];
-        vc.getGenotypes().stream().filter(this::isTumor).forEach(g ->  {
-                final double weight = MathUtils.sum(g.getAD());
-                totalWeight.add(weight);
-                final double[] sampleAFs = GATKProtectedVariantContextUtils.getAttributeAsDoubleArray(g, VCFConstants.ALLELE_FREQUENCY_KEY,
-                        () -> new double[] {0.0}, 0.0);
-                MathArrays.scaleInPlace(weight, sampleAFs);
-                MathUtils.addToArrayInPlace(AFs, sampleAFs);
-        });
-        MathArrays.scaleInPlace(1/totalWeight.getValue(), AFs);
-        return AFs;
-    }
 
 }

@@ -15,6 +15,10 @@ public class StrictStrandBiasFilter extends HardFilter {
     public StrictStrandBiasFilter(final int minReadsOnEachStrand) {
         this.minReadsOnEachStrand = minReadsOnEachStrand;
     }
+
+    @Override
+    public ErrorType errorType() { return ErrorType.ARTIFACT; }
+
     @Override
     public boolean isArtifact(final VariantContext vc, final Mutect2FilteringEngine filteringInfo) {
         if (minReadsOnEachStrand == 0) {

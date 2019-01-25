@@ -124,7 +124,7 @@ final public class DataSourceUtils {
             final Path pathToDatasources = getCloudSafePathToDirectory(pathString);
 
             if ( !isValidDirectory(pathToDatasources) ) {
-                throw new UserException("ERROR: Given data source path is not a valid directory: " + pathToDatasources.toUri());
+                throw new UserException("Error: Given data source path is not a valid directory: " + pathToDatasources.toUri());
             }
 
             // Log information from the datasources directory so we can have a record of what we're using:
@@ -180,10 +180,10 @@ final public class DataSourceUtils {
 
         // Sanity checks to make sure we actually found our data sources:
         if ( metaData.size() == 0 ) {
-            throw new UserException("ERROR: Could not find any data sources for given reference: " + refVersion);
+            throw new UserException("Error: Could not find any data sources for given reference: " + refVersion);
         }
         else if ( !hasGencodeDataSource ) {
-            throw new UserException("ERROR: a Gencode datasource is required!");
+            throw new UserException("Error: a Gencode datasource is required!");
         }
 
         return metaData;
@@ -210,10 +210,10 @@ final public class DataSourceUtils {
                     .collect(Collectors.toList());
 
             if (configFileSet.size() > 1) {
-                throw new UserException("ERROR: Directory contains more than one config file: " + directory.toUri().toString());
+                throw new UserException("Error: Directory contains more than one config file: " + directory.toUri().toString());
             }
             else if ( configFileSet.size() == 0 ) {
-                throw new UserException("ERROR: Directory does not contain a config file: " + directory.toUri().toString());
+                throw new UserException("Error: Directory does not contain a config file: " + directory.toUri().toString());
             }
 
             return configFileSet.get(0);
@@ -683,7 +683,7 @@ final public class DataSourceUtils {
         if ( !dataSourcesPathIsAcceptable ) {
 
             String message = "";
-            message = message + "ERROR: Given data source path is too old!  Minimum required version is: " + CURRENT_MINIMUM_DATA_SOURCE_VERSION + " (yours: " + version + ")\n";
+            message = message + "Error: Given data source path is too old!  Minimum required version is: " + CURRENT_MINIMUM_DATA_SOURCE_VERSION + " (yours: " + version + ")\n";
             message = message + "       You must download a newer version of the data sources from the Broad Institute FTP site: " + DATA_SOURCES_FTP_PATH + "\n";
             message = message + "       or the Broad Institute Google Bucket: " + DATA_SOURCES_BUCKET_PATH + "\n";
             throw new UserException( message );
@@ -752,7 +752,7 @@ final public class DataSourceUtils {
             type = FuncotatorArgumentDefinitions.DataSourceType.getEnum(stringType);
         }
         catch (final IllegalArgumentException ex) {
-            throw new UserException.BadInput("ERROR in config file: " + configFilePath.toUri().toString() +
+            throw new UserException.BadInput("Error in config file: " + configFilePath.toUri().toString() +
                     " - Invalid value in \"" + CONFIG_FILE_FIELD_NAME_TYPE + "\" field: " + stringType, ex);
         }
 
@@ -783,7 +783,7 @@ final public class DataSourceUtils {
             Integer.valueOf(props.getProperty(field));
         }
         catch (final NumberFormatException ex) {
-            throw new UserException.BadInput("ERROR in config file: " + filePath.toUri().toString() +
+            throw new UserException.BadInput("Error in config file: " + filePath.toUri().toString() +
                     " - Invalid value in \"" + field + "\" field: " + props.getProperty(field));
         }
     }
@@ -799,7 +799,7 @@ final public class DataSourceUtils {
             final String comparableValue = props.getProperty(field).trim().toLowerCase();
 
             if ( !comparableValue.equals("true") && !comparableValue.equals("false") ) {
-                throw new UserException.BadInput("ERROR in config file: " + filePath.toUri().toString() +
+                throw new UserException.BadInput("Error in config file: " + filePath.toUri().toString() +
                         " - Invalid value in \"" + field + "\" field: " + props.getProperty(field));
             }
     }
@@ -841,15 +841,15 @@ final public class DataSourceUtils {
         final Path absoluteFilePath = resolveFilePathStringFromKnownPath(filePathString, configFilePath);
 
         if ( !Files.exists(absoluteFilePath) ) {
-            throw new UserException.BadInput("ERROR in config file: " + configFilePath.toUri().toString() +
+            throw new UserException.BadInput("Error in config file: " + configFilePath.toUri().toString() +
                     " - " + field + " does not exist: " + absoluteFilePath);
         }
         else if ( !Files.isRegularFile(absoluteFilePath) ) {
-            throw new UserException.BadInput("ERROR in config file: " + configFilePath.toUri().toString() +
+            throw new UserException.BadInput("Error in config file: " + configFilePath.toUri().toString() +
                     " -  " + field + " is not a regular file: " + absoluteFilePath);
         }
         else if ( !Files.isReadable(absoluteFilePath) ) {
-            throw new UserException.BadInput("ERROR in config file: " + configFilePath.toUri().toString() +
+            throw new UserException.BadInput("Error in config file: " + configFilePath.toUri().toString() +
                     " - " + field + " is not readable: " + absoluteFilePath);
         }
     }

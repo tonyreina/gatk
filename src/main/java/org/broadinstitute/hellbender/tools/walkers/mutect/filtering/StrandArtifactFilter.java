@@ -38,7 +38,10 @@ public class StrandArtifactFilter extends Mutect2VariantFilter {
     private final List<EStep> eSteps = new ArrayList<>();
 
     @Override
-    public double calculateArtifactProbability(final VariantContext vc, final Mutect2FilteringEngine filteringInfo) {
+    public ErrorType errorType() { return ErrorType.ARTIFACT; }
+
+    @Override
+    public double calculateErrorProbability(final VariantContext vc, final Mutect2FilteringEngine filteringInfo) {
         final EStep probabilities = calculateArtifactProbabilities(vc, filteringInfo);
         return probabilities.forwardArtifactProbability + probabilities.reverseArtifactProbability;
     }

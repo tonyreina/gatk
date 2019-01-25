@@ -12,7 +12,10 @@ import java.util.List;
 import java.util.Optional;
 
 public class ReadOrientationFilter extends Mutect2VariantFilter {
-    public double calculateArtifactProbability(final VariantContext vc, final Mutect2FilteringEngine filteringInfo) {
+    @Override
+    public ErrorType errorType() { return ErrorType.ARTIFACT; }
+
+    public double calculateErrorProbability(final VariantContext vc, final Mutect2FilteringEngine filteringInfo) {
 
         if (! vc.isSNP()){
             return 0;

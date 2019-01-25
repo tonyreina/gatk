@@ -14,6 +14,9 @@ public class ClusteredEventsFilter extends HardFilter {
     }
 
     @Override
+    public ErrorType errorType() { return ErrorType.ARTIFACT; }
+
+    @Override
     public boolean isArtifact(final VariantContext vc, final Mutect2FilteringEngine filteringInfo) {
         final Integer eventCount = vc.getAttributeAsInt(GATKVCFConstants.EVENT_COUNT_IN_HAPLOTYPE_KEY, -1);
         return eventCount > maxEventsInRegion;

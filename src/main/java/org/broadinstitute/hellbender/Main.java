@@ -248,7 +248,7 @@ public class Main {
      * @param e the exception to handle
      */
     protected void handleUserException(Exception e) {
-        printDecoratedExceptionMessage(System.err, e, "A USER ERROR has occurred: ");
+        printDecoratedExceptionMessage(System.err, e, "A USER Error has occurred: ");
 
         if(printStackTraceOnUserExceptions()) {
             e.printStackTrace();

@@ -12,6 +12,10 @@ public class ChimericOriginalAlignmentFilter extends HardFilter {
     public ChimericOriginalAlignmentFilter(final double maxNuMTFraction) {
         this.maxNuMTFraction = maxNuMTFraction;
     }
+
+    @Override
+    public ErrorType errorType() { return ErrorType.ARTIFACT; }
+
     @Override
     public boolean isArtifact(final VariantContext vc, final Mutect2FilteringEngine filteringInfo) {
         if(!vc.isBiallelic()) {

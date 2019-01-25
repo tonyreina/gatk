@@ -13,6 +13,10 @@ public class FragmentLengthFilter extends HardFilter {
     public FragmentLengthFilter(final double maxMedianFragmentLengthDifference) {
         this.maxMedianFragmentLengthDifference = maxMedianFragmentLengthDifference;
     }
+
+    @Override
+    public ErrorType errorType() { return ErrorType.ARTIFACT; }
+
     @Override
     public boolean isArtifact(final VariantContext vc, final Mutect2FilteringEngine filteringInfo) {
         final List<Integer> fragmentLengthByAllele = vc.getAttributeAsIntList(FragmentLength.KEY, 0);

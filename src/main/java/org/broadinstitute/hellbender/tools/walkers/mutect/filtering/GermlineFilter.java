@@ -27,7 +27,10 @@ public class GermlineFilter extends Mutect2VariantFilter {
     }
 
     @Override
-    public double calculateArtifactProbability(final VariantContext vc, final Mutect2FilteringEngine filteringInfo) {
+    public ErrorType errorType() { return ErrorType.NON_SOMATIC; }
+
+    @Override
+    public double calculateErrorProbability(final VariantContext vc, final Mutect2FilteringEngine filteringInfo) {
         final double[] tumorLog10OddsIfSomatic = GATKProtectedVariantContextUtils.getAttributeAsDoubleArray(vc, GATKVCFConstants.TUMOR_LOD_KEY);
         final Optional<double[]> normalLods = vc.hasAttribute(GATKVCFConstants.NORMAL_LOD_KEY) ?
                 Optional.of(GATKProtectedVariantContextUtils.getAttributeAsDoubleArray(vc, GATKVCFConstants.NORMAL_LOD_KEY)) : Optional.empty();
@@ -80,9 +83,6 @@ public class GermlineFilter extends Mutect2VariantFilter {
         final int indexOfMaxTumorLod = MathUtils.maxElementIndex(tumorLog10OddsIfSomatic);
         return Math.pow(10.0, log10GermlinePosteriors[indexOfMaxTumorLod]);
     }
-
-    @Override
-    public boolean isTechnicalArtifact() { return false; }
 
     @Override
     public String filterName() {

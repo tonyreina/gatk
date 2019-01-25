@@ -394,7 +394,7 @@ public final class ConfigFactory {
                 else {
                     // Option was provided, but no file was specified.
                     // We cannot work under these conditions:
-                    throw new UserException.BadInput("ERROR: Configuration file not given after config file option specified: " + configFileOption);
+                    throw new UserException.BadInput("Error: Configuration file not given after config file option specified: " + configFileOption);
                 }
             }
         }

@@ -13,6 +13,10 @@ public class ReadPositionFilter extends HardFilter {
     public ReadPositionFilter(final double minMedianReadPosition) {
         this.minMedianReadPosition = minMedianReadPosition;
     }
+
+    @Override
+    public ErrorType errorType() { return ErrorType.ARTIFACT; }
+
     @Override
     public boolean isArtifact(final VariantContext vc, final Mutect2FilteringEngine filteringInfo) {
         final List<Integer> readPositionByAllele = vc.getAttributeAsIntList(ReadPosition.KEY, 0);

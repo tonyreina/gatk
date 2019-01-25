@@ -15,6 +15,10 @@ public class DuplicatedAltReadFilter extends HardFilter {
     public DuplicatedAltReadFilter(final int uniqueAltReadCount) {
         this.uniqueAltReadCount = uniqueAltReadCount;
     }
+
+    @Override
+    public ErrorType errorType() { return ErrorType.ARTIFACT; }
+
     @Override
     public boolean isArtifact(final VariantContext vc, final Mutect2FilteringEngine filteringInfo) {
         return vc.getAttributeAsInt(UniqueAltReadCount.KEY, 1) <= uniqueAltReadCount;

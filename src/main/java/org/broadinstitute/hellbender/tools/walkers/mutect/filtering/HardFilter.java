@@ -6,7 +6,7 @@ import java.util.Optional;
 
 public abstract class HardFilter extends Mutect2VariantFilter {
     @Override
-    public double calculateArtifactProbability(final VariantContext vc, final Mutect2FilteringEngine filteringInfo) {
+    public double calculateErrorProbability(final VariantContext vc, final Mutect2FilteringEngine filteringInfo) {
         return isArtifact(vc, filteringInfo) ? 1 : 0;
     }
 

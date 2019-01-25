@@ -24,8 +24,12 @@ public class ContaminationFilter extends Mutect2VariantFilter {
 
         defaultContamination = contaminationEstimate;
     }
+
     @Override
-    public double calculateArtifactProbability(final VariantContext vc, final Mutect2FilteringEngine filteringInfo) {
+    public ErrorType errorType() { return ErrorType.NON_SOMATIC; }
+
+    @Override
+    public double calculateErrorProbability(final VariantContext vc, final Mutect2FilteringEngine filteringInfo) {
         final double somaticPriorProb = Math.pow(10, filteringInfo.getLog10PriorOfSomaticVariant(vc));
         final List<ImmutablePair<Integer, Double>> depthsAndPosteriors = new ArrayList<>();
 
@@ -59,9 +63,6 @@ public class ContaminationFilter extends Mutect2VariantFilter {
 
         return weightedMedianPosteriorProbability(depthsAndPosteriors);
     }
-
-    @Override
-    public boolean isTechnicalArtifact() { return false; }
 
     @Override
     public String filterName() {

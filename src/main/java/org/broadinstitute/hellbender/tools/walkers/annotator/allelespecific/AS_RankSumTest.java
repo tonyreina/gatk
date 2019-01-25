@@ -291,7 +291,7 @@ public abstract class AS_RankSumTest extends RankSumTest implements ReducibleAnn
                 annotationString += REDUCED_DELIM;
             }
             if (!perAltRankSumResults.containsKey(a)) {
-                logger.warn("ERROR: VC allele not found in annotation alleles -- maybe there was trimming?");
+                logger.warn("Error: VC allele not found in annotation alleles -- maybe there was trimming?");
             } else {
                 annotationString += String.format("%.3f", perAltRankSumResults.get(a));
             }

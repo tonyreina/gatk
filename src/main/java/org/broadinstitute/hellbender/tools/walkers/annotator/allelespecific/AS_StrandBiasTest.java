@@ -96,7 +96,7 @@ public abstract class AS_StrandBiasTest extends StrandBiasTest implements Reduci
                 annotationString += REDUCED_DELIM;
             }
             if (!perAltsStrandCounts.containsKey(a)) {
-                logger.warn("ERROR: VC allele not found in annotation alleles -- maybe there was trimming?");
+                logger.warn("Error: VC allele not found in annotation alleles -- maybe there was trimming?");
             } else {
                 annotationString += String.format("%.3f", perAltsStrandCounts.get(a));
             }

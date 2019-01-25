@@ -95,7 +95,7 @@ public class FuncotatorArgumentDefinitions {
                     SimpleKeyXsvFuncotationFactory.XsvDataKeyType.valueOf(stringXsvKey);
                 }
                 catch (final IllegalArgumentException ex) {
-                    throw new UserException.BadInput("ERROR in config file: " + configFilePath.toUri().toString() +
+                    throw new UserException.BadInput("Error in config file: " + configFilePath.toUri().toString() +
                             " - Invalid value in \"" + DataSourceUtils.CONFIG_FILE_FIELD_NAME_XSV_KEY + "\" field: " + stringXsvKey, ex);
                 }
             }

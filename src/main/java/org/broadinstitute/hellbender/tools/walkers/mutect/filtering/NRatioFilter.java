@@ -13,6 +13,10 @@ public class NRatioFilter extends HardFilter {
     public NRatioFilter(final double maxNRatio) {
         this.maxNRatio = maxNRatio;
     }
+
+    @Override
+    public ErrorType errorType() { return ErrorType.ARTIFACT; }
+    
     @Override
     public boolean isArtifact(final VariantContext vc, final Mutect2FilteringEngine filteringInfo) {
         final int[] ADs = filteringInfo.sumADsOverSamples(vc, true, true);

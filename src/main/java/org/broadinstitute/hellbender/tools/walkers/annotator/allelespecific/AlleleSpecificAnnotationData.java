@@ -42,10 +42,10 @@ public final class AlleleSpecificAnnotationData<T> extends ReducibleAnnotationDa
     private void checkRefAlleles() {
         final long refCount = alleleList.stream().filter(Allele::isReference).count();
         if (refCount > 1) {
-            throw new IllegalArgumentException("ERROR: multiple reference alleles found in annotation data\n");
+            throw new IllegalArgumentException("Error: multiple reference alleles found in annotation data\n");
         }
         if (refCount == 0) {
-            throw new IllegalArgumentException("ERROR: no reference alleles found in annotation data\n");
+            throw new IllegalArgumentException("Error: no reference alleles found in annotation data\n");
         }
     }
 }
