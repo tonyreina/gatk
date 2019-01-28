@@ -112,15 +112,15 @@ public class Mutect2FilteringEngine {
     public void accumulateData(final VariantContext vc) {
         filters.forEach(f -> f.accumulateDataForLearning(vc, this));
 
-        final Pair<Double, Double> overallAndTechnicalArtifactProbs = overallAndTechnicalOnlyArtifactProbabilities(vc);
-        somaticPriorModel.record(vc, overallAndTechnicalArtifactProbs.getLeft(), overallAndTechnicalArtifactProbs.getRight());
+        final ErrorProbabilities errorProbabilities = new ErrorProbabilities(filters, vc, this);
+        somaticPriorModel.record(vc, errorProbabilities);
 
         // bad haplotypes and artifact posteriors
-        if (overallAndTechnicalArtifactProbs.getLeft() > getArtifactProbabilityThreshold() - EPSILON) {
+        if (errorProbabilities.getErrorProbability() > getArtifactProbabilityThreshold() - EPSILON) {
             recordFilteredHaplotypes(vc);
         }
 
-        thresholdCalculator.addArtifactProbability(overallAndTechnicalArtifactProbs.getLeft());
+        thresholdCalculator.addArtifactProbability(errorProbabilities.getErrorProbability());
     }
 
     /**
@@ -140,26 +140,20 @@ public class Mutect2FilteringEngine {
     public VariantContext applyFiltersAndAccumulateOutputStats(final VariantContext vc) {
         final VariantContextBuilder vcb = new VariantContextBuilder(vc).filters(new HashSet<>());
 
-        final Map<Mutect2VariantFilter, Double> artifactProbabilities = filters.stream()
-                .collect(Collectors.toMap(f -> f, f -> f.errorProbability(vc, this)));
+        final ErrorProbabilities errorProbabilities = new ErrorProbabilities(filters, vc, this);
+        filteringOutputStats.recordCall(errorProbabilities, getArtifactProbabilityThreshold() - EPSILON);
 
-        final double overallArtifactProbability = overallAndTechnicalOnlyArtifactProbabilities(artifactProbabilities).getLeft();
-
-        final boolean filtered = overallArtifactProbability > getArtifactProbabilityThreshold() - EPSILON;
-
-        filteringOutputStats.recordCall(filtered, overallArtifactProbability, artifactProbabilities, getArtifactProbabilityThreshold());
-
-        for (final Map.Entry<Mutect2VariantFilter, Double> entry : artifactProbabilities.entrySet()) {
-            final double artifactProbability = entry.getValue();
+        for (final Map.Entry<Mutect2VariantFilter, Double> entry : errorProbabilities.getProbabilitiesByFilter().entrySet()) {
+            final double errorProbability = entry.getValue();
 
             entry.getKey().phredScaledPosteriorAnnotationName().ifPresent(annotation -> {
                 if (entry.getKey().requiredAnnotations().stream().allMatch(vc::hasAttribute)) {
-                    vcb.attribute(annotation, QualityUtils.errorProbToQual(artifactProbability));
+                    vcb.attribute(annotation, QualityUtils.errorProbToQual(errorProbability));
                 }
             });
 
             // TODO: clarify this logic
-            if (artifactProbability > EPSILON && artifactProbability > getArtifactProbabilityThreshold() - EPSILON) {
+            if (errorProbability > EPSILON && errorProbability > getArtifactProbabilityThreshold() - EPSILON) {
                 vcb.filter(entry.getKey().filterName());
             }
         }
@@ -213,38 +207,4 @@ public class Mutect2FilteringEngine {
             filteredPhasedCalls.put(pidAndPgts.getKey(), new ImmutablePair<>(vc.getStart(), pidAndPgts.getValue()));
         }
     }
-
-    private Pair<Double, Double> overallAndTechnicalOnlyArtifactProbabilities(final VariantContext vc) {
-        return overallAndTechnicalOnlyArtifactProbabilities(filters.stream()
-                .collect(Collectors.toMap(f -> f, f -> f.calculateErrorProbability(vc, this))));
-    }
-
-    private Pair<Double, Double> overallAndTechnicalOnlyArtifactProbabilities(final Map<Mutect2VariantFilter, Double> map) {
-        final double technicalArtifactProbability = map.entrySet().stream().filter(entry -> entry.getKey().errorType())
-                .mapToDouble(entry -> entry.getValue()).max().orElseGet(() -> 0);
-        final double nonTechnicalArtifactProbability = map.entrySet().stream().filter(entry -> !entry.getKey().errorType())
-                .mapToDouble(entry -> entry.getValue()).max().orElseGet(() -> 0);
-
-        final double overallProbability = 1 - (1 - technicalArtifactProbability) * (1 - nonTechnicalArtifactProbability);
-
-        return ImmutablePair.of(overallProbability, technicalArtifactProbability);
-    }
-
-    private final class ErrorProbabilities {
-        private final Map<Mutect2VariantFilter, Double> probabilitiesByFilter;
-        private final EnumMap<ErrorType, Double> probabilitiesByType;
-
-
-        public ErrorProbabilities(final VariantContext vc) {
-            probabilitiesByFilter = filters.stream().collect(Collectors.toMap(f -> f, f -> f.errorProbability(vc, this)));
-
-            probabilitiesByType = new EnumMap<>(ErrorType.class);
-
-            final Map<ErrorType, List<Map.Entry<Mutect2VariantFilter, Double>>> doogle = probabilitiesByFilter.entrySet().stream().collect(Collectors.groupingBy(entry -> entry.getKey().errorType()));
-
-
-        }
-    }
-
-
 }

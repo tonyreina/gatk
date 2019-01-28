@@ -26,21 +26,23 @@ public class FilteringOutputStats {
         this.filters = filters;
     }
 
-    public void recordCall(final boolean filtered, final double artifactProbability,
-                           final Map<Mutect2VariantFilter, Double> artifactProbabilities,
-                           final double threshold) {
+    public void recordCall(final ErrorProbabilities errorProbabilities, final double threshold) {
+
+        final double errorProbability = errorProbabilities.getErrorProbability();
+        final boolean filtered = errorProbability > threshold;
+
         if (filtered) {
-            FNs += 1 - artifactProbability;
+            FNs += 1 - errorProbability;
         } else {
             pass++;
-            FPs += artifactProbability;
-            TPs += 1 - artifactProbability;
+            FPs += errorProbability;
+            TPs += 1 - errorProbability;
         }
 
-        for (final Map.Entry<Mutect2VariantFilter, Double> entry : artifactProbabilities.entrySet()) {
+        for (final Map.Entry<Mutect2VariantFilter, Double> entry : errorProbabilities.getProbabilitiesByFilter().entrySet()) {
             final double filterArtifactProbability = entry.getValue();
             if (filterArtifactProbability > Mutect2FilteringEngine.EPSILON && filterArtifactProbability > threshold - Mutect2FilteringEngine.EPSILON) {
-                filterFNs.get(entry.getKey()).add(1 - artifactProbability);
+                filterFNs.get(entry.getKey()).add(1 - errorProbability);
             } else if (!filtered) {
                 filterFPs.get(entry.getKey()).add(filterArtifactProbability);
             }

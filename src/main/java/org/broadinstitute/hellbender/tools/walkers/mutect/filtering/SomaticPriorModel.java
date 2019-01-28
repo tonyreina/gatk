@@ -35,10 +35,10 @@ public class SomaticPriorModel {
 
     public double getPriorProbOfArtifactVersusVariant() { return artifactVsVariantPrior; }
 
-    public void record(final VariantContext vc, final double artifactProbability, final double technicalArtifactProbability) {
-        realVariantCount.add(1 - artifactProbability);
-        (vc.isSNP() ? realSNVCount : realIndelCount).add(1 - artifactProbability);
-        technicalArtifactCount.add(technicalArtifactProbability);
+    public void record(final VariantContext vc, final ErrorProbabilities errorProbabilities) {
+        realVariantCount.add(1 - errorProbabilities.getErrorProbability());
+        (vc.isSNP() ? realSNVCount : realIndelCount).add(1 - errorProbabilities.getErrorProbability());
+        technicalArtifactCount.add(errorProbabilities.getTechnicalArtifactProbability());
     }
 
     // by default, clear accumulated data after learning
