@@ -7,6 +7,7 @@ import org.broadinstitute.hellbender.tools.walkers.mutect.MutectStats;
 import org.broadinstitute.hellbender.utils.MathUtils;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.OptionalDouble;
 
 public class SomaticPriorModel {
@@ -25,8 +26,9 @@ public class SomaticPriorModel {
         log10IndelPrior = MTFAC.log10IndelPrior;
         artifactVsVariantPrior = MTFAC.initialPriorOfArtifactVersusVariant;
 
-        callableSites = mutectStats.stream().filter(stat -> stat.getStatistic().equals(Mutect2Engine.CALLABLE_SITES_NAME))
-                .mapToDouble(MutectStats::getValue).findFirst();
+        //callableSites = mutectStats.stream().filter(stat -> stat.getStatistic().equals(Mutect2Engine.CALLABLE_SITES_NAME))
+        //        .mapToDouble(MutectStats::getValue).findFirst();
+        callableSites = OptionalDouble.empty();
     }
 
     public double getLog10PriorOfSomaticVariant(final VariantContext vc) {
