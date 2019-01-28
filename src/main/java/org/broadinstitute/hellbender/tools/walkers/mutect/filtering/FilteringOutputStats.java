@@ -17,13 +17,15 @@ public class FilteringOutputStats {
     private double FPs = 0;
     private double FNs = 0;
 
-    private Map<Mutect2VariantFilter, MutableDouble> filterFPs = makeEmptyFilterCounts();
-    private Map<Mutect2VariantFilter, MutableDouble> filterFNs = makeEmptyFilterCounts();
+    private Map<Mutect2VariantFilter, MutableDouble> filterFPs;
+    private Map<Mutect2VariantFilter, MutableDouble> filterFNs;
 
     private final List<Mutect2VariantFilter> filters;
 
     public FilteringOutputStats(final List<Mutect2VariantFilter> filters) {
         this.filters = filters;
+        filterFPs = makeEmptyFilterCounts();
+        filterFNs = makeEmptyFilterCounts();
     }
 
     public void recordCall(final ErrorProbabilities errorProbabilities, final double threshold) {
