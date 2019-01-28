@@ -48,6 +48,19 @@ public class FilteredHaplotypeFilter extends HardFilter {
     }
 
     @Override
+    protected void accumulateDataForLearning(final VariantContext vc, final ErrorProbabilities errorProbabilities, final Mutect2FilteringEngine filteringInfo) {
+        final double technicalArtifactProbability = errorProbabilities.getTechnicalArtifactProbability();
+    }
+
+    // although we don't have to do so, it's worth explicitly overriding to make clear that although there is a
+    // non-trivial accumulate method, nonetheless we don't do anything in the clear and learn methods
+    @Override
+    protected void clearAccumulatedData() { }
+
+    @Override
+    protected void learnParameters() { }
+
+    @Override
     public String filterName() {
         return GATKVCFConstants.BAD_HAPLOTYPE_FILTER_NAME;
     }

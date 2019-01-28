@@ -32,9 +32,6 @@ public class Mutect2FilteringEngine {
     private final List<Mutect2VariantFilter> filters = new ArrayList<>();
     private final Set<String> normalSamples;
 
-    // TODO: make this private to BadHaplotypeFilter
-    // TODO: make it probabilistic and eliminate the FIRST_PASS_THRESHOLD
-    // for each PID, the positions with PGTs of filtered genotypes
     private final Map<String, ImmutablePair<Integer, Set<String>>> filteredPhasedCalls;
 
     /**
@@ -110,9 +107,8 @@ public class Mutect2FilteringEngine {
      * record data from a potential variant in a non-final pass of {@link FilterMutectCalls}
      */
     public void accumulateData(final VariantContext vc) {
-        filters.forEach(f -> f.accumulateDataForLearning(vc, this));
-
         final ErrorProbabilities errorProbabilities = new ErrorProbabilities(filters, vc, this);
+        filters.forEach(f -> f.accumulateDataForLearning(vc, errorProbabilities, this));
         somaticPriorModel.record(vc, errorProbabilities);
 
         // bad haplotypes and artifact posteriors
