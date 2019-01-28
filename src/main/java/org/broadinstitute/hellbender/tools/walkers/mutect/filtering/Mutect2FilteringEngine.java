@@ -32,8 +32,6 @@ public class Mutect2FilteringEngine {
     private final List<Mutect2VariantFilter> filters = new ArrayList<>();
     private final Set<String> normalSamples;
 
-    private final Map<String, ImmutablePair<Integer, Set<String>>> filteredPhasedCalls;
-
     /**
      * DATA ACCUMULATED AND LEARNED ON EACH PASS OF {@link FilterMutectCalls}
      */
@@ -51,8 +49,6 @@ public class Mutect2FilteringEngine {
                 .map(VCFHeaderLine::getValue)
                 .collect(Collectors.toSet());
 
-        filteredPhasedCalls = new HashMap<>();
-
         buildFiltersList(MTFAC);
         filteringOutputStats = new FilteringOutputStats(filters);
     }
@@ -62,10 +58,6 @@ public class Mutect2FilteringEngine {
 
     public boolean isTumor(final Genotype genotype) { return !isNormal(genotype); }
 
-    public Map<String, ImmutablePair<Integer, Set<String>>> getFilteredPhasedCalls() {
-        return filteredPhasedCalls;
-    }
-
     public double getArtifactProbabilityThreshold() { return thresholdCalculator.getThreshold(); }
 
     public double getLog10PriorOfSomaticVariant(final VariantContext vc) {
@@ -74,10 +66,6 @@ public class Mutect2FilteringEngine {
 
     public double getPriorProbOfArtifactVersusVariant() {
         return somaticPriorModel.getPriorProbOfArtifactVersusVariant();
-    }
-
-    public static boolean hasPhaseInfo(final Genotype genotype) {
-        return genotype.hasExtendedAttribute(GATKVCFConstants.HAPLOTYPE_CALLER_PHASING_GT_KEY) && genotype.hasExtendedAttribute(GATKVCFConstants.HAPLOTYPE_CALLER_PHASING_ID_KEY);
     }
 
     public int[] sumADsOverSamples(final VariantContext vc, final boolean includeTumor, final boolean includeNormal) {
@@ -110,12 +98,6 @@ public class Mutect2FilteringEngine {
         final ErrorProbabilities errorProbabilities = new ErrorProbabilities(filters, vc, this);
         filters.forEach(f -> f.accumulateDataForLearning(vc, errorProbabilities, this));
         somaticPriorModel.record(vc, errorProbabilities);
-
-        // bad haplotypes and artifact posteriors
-        if (errorProbabilities.getErrorProbability() > getArtifactProbabilityThreshold() - EPSILON) {
-            recordFilteredHaplotypes(vc);
-        }
-
         thresholdCalculator.addArtifactProbability(errorProbabilities.getErrorProbability());
     }
 
@@ -189,18 +171,6 @@ public class Mutect2FilteringEngine {
             filters.add(new PolymeraseSlippageFilter(MTFAC.minSlippageLength, MTFAC.slippageRate));
             filters.add(new FilteredHaplotypeFilter(MTFAC.maxDistanceToFilteredCallOnSameHaplotype));
             filters.add(new GermlineFilter(MTFAC.tumorSegmentationTables));
-        }
-    }
-
-    private void recordFilteredHaplotypes(final VariantContext vc) {
-        final Map<String, Set<String>> phasedGTsForEachPhaseID = vc.getGenotypes().stream()
-                .filter(gt -> !normalSamples.contains(gt.getSampleName()))
-                .filter(Mutect2FilteringEngine::hasPhaseInfo)
-                .collect(Collectors.groupingBy(g -> (String) g.getExtendedAttribute(GATKVCFConstants.HAPLOTYPE_CALLER_PHASING_ID_KEY, ""),
-                        Collectors.mapping(g -> (String) g.getExtendedAttribute(GATKVCFConstants.HAPLOTYPE_CALLER_PHASING_GT_KEY, ""), Collectors.toSet())));
-
-        for (final Map.Entry<String, Set<String>> pidAndPgts : phasedGTsForEachPhaseID.entrySet()) {
-            filteredPhasedCalls.put(pidAndPgts.getKey(), new ImmutablePair<>(vc.getStart(), pidAndPgts.getValue()));
         }
     }
 }
