@@ -393,7 +393,8 @@ public final class IOUtils {
      */
     public static Reader makeReaderMaybeGzipped(Path path) throws IOException {
         final InputStream in = new BufferedInputStream(Files.newInputStream(path));
-        return makeReaderMaybeGzipped(in, path.endsWith(".gz"));
+        // toString because path.endsWith only checks whole path components, not substrings.
+        return makeReaderMaybeGzipped(in, path.toString().endsWith(".gz"));
     }
 
     /**
