@@ -36,7 +36,7 @@ workflow ToolComparisonWdl {
     # ------------------------------------------------
     # Input args:
     String gatk_docker
-    String baseline_docker = "jamesemery/gatk-nightly:masterBranchAfterDavidFix"
+    String baseline_docker = "jamesemery/gakt-nightly:je_HaplotypeCallerMicroOptimization3ControlMaster"
     # Default input files for HC and comparison:
     String truth_bucket_location = "gs://haplotypecallerspark-evaluation/groundTruth/"
     String input_bucket_location = "gs://haplotypecallerspark-evaluation/inputData/"
