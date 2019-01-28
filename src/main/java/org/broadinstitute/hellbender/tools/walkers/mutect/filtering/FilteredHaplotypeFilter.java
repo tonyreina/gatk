@@ -102,10 +102,6 @@ public class FilteredHaplotypeFilter extends Mutect2VariantFilter {
     @Override
     public Optional<String> phredScaledPosteriorAnnotationName() { return Optional.empty(); }
 
-    private static boolean hasPhaseInfo(final Genotype genotype) {
-        return genotype.hasExtendedAttribute(GATKVCFConstants.HAPLOTYPE_CALLER_PHASING_GT_KEY) && genotype.hasExtendedAttribute(GATKVCFConstants.HAPLOTYPE_CALLER_PHASING_ID_KEY);
-    }
-
     // concatenate the PGT and PID strings, if present
     private static Optional<String> makePhasingString(final Genotype genotype) {
         final String pgt = (String) genotype.getExtendedAttribute(GATKVCFConstants.HAPLOTYPE_CALLER_PHASING_GT_KEY, null);
