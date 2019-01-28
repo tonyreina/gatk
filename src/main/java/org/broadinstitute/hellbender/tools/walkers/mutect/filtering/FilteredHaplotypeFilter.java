@@ -15,7 +15,9 @@ public class FilteredHaplotypeFilter extends Mutect2VariantFilter {
     private final double maxIntraHaplotypeDistance;
 
     // for each pgt + pid phasing string, a list of loci-error probability pairs
-    private final Map<String, List<Pair<Integer, Double>>> phasedProbabilities = new HashMap<>();
+    private Map<String, List<Pair<Integer, Double>>> accumulatingPhasedProbabilities = new HashMap<>();
+
+    private Map<String, List<Pair<Integer, Double>>> phasedProbabilities = new HashMap<>();
 
     public FilteredHaplotypeFilter(final double maxIntraHaplotypeDistance) {
         this.maxIntraHaplotypeDistance = maxIntraHaplotypeDistance;
@@ -36,6 +38,7 @@ public class FilteredHaplotypeFilter extends Mutect2VariantFilter {
             return 0.0;
         }
 
+        // note that we use the learned probabilities from the previous pass
         final List<Pair<Integer, Double>> phasedProbs = phasedProbabilities.get(phasingString.get());
 
         if (phasedProbs == null) {
@@ -50,7 +53,12 @@ public class FilteredHaplotypeFilter extends Mutect2VariantFilter {
 
     @Override
     protected void accumulateDataForLearning(final VariantContext vc, final ErrorProbabilities errorProbabilities, final Mutect2FilteringEngine filteringInfo) {
-        final double technicalArtifactProbability = errorProbabilities.getTechnicalArtifactProbability();
+        // we record the maximum non-sequencing artifact that is not this filter itself
+        final double artifactProbability = errorProbabilities.getProbabilitiesByFilter().entrySet().stream()
+                .filter(e -> e.getKey().errorType() != ErrorType.SEQUENCING)
+                .filter(e -> !e.getKey().filterName().equals(filterName()))
+                .mapToDouble(e -> e.getValue())
+                .max().orElse(0.0);
 
         for (final Genotype tumorGenotype : vc.getGenotypes()) {
             if (!filteringInfo.isTumor(tumorGenotype)) {
@@ -63,21 +71,25 @@ public class FilteredHaplotypeFilter extends Mutect2VariantFilter {
                 continue;
             }
 
-            if (!phasedProbabilities.containsKey(phasingString.get())) {
-                phasedProbabilities.put(phasingString.get(), new ArrayList<>());
+            if (!accumulatingPhasedProbabilities.containsKey(phasingString.get())) {
+                accumulatingPhasedProbabilities.put(phasingString.get(), new ArrayList<>());
             }
 
-            phasedProbabilities.get(phasingString.get()).add(ImmutablePair.of(vc.getStart(), technicalArtifactProbability));
+            accumulatingPhasedProbabilities.get(phasingString.get()).add(ImmutablePair.of(vc.getStart(), artifactProbability));
         }
     }
 
-    // although we don't have to do so, it's worth explicitly overriding to make clear that although there is a
-    // non-trivial accumulate method, nonetheless we don't do anything in the clear and learn methods
-    @Override
-    protected void clearAccumulatedData() { }
 
     @Override
-    protected void learnParameters() { }
+    protected void clearAccumulatedData() {
+        accumulatingPhasedProbabilities = new HashMap<>();
+    }
+
+    @Override
+    protected void learnParameters() {
+        // move the accumulating probabilities to the learned probabiities
+        phasedProbabilities = accumulatingPhasedProbabilities;
+    }
 
     @Override
     public String filterName() {
