@@ -728,7 +728,7 @@ public class ReadThreadingGraph extends BaseGraph<MultiDeBruijnVertex, MultiSamp
         }
 
         // now get the reference path from the LCA
-        final List<MultiDeBruijnVertex> refPath = getReferencePath(altPath.get(0), TraversalDirection.downwards, Optional.ofNullable(incomingEdgeOf(altPath.get(1))));
+        final List<MultiDeBruijnVertex> refPath = getReferencePath(altPath.get(0), TraversalDirection.downwards, Optional.ofNullable(getHeaviestIncomingEdge(altPath.get(1))));
 
         // create the Smith-Waterman strings to use
         final byte[] refBases = getBasesForPath(refPath, false);
@@ -780,7 +780,22 @@ public class ReadThreadingGraph extends BaseGraph<MultiDeBruijnVertex, MultiSamp
      *  has an ancestor with multiple incoming edges before hitting the reference path
      */
     private List<MultiDeBruijnVertex> findPathUpwardsToLowestCommonAncestor(final MultiDeBruijnVertex vertex, final int pruneFactor) {
-        return findPath(vertex, pruneFactor, v -> inDegreeOf(v) != 1 || outDegreeOf(v) >= 2, v -> outDegreeOf(v) > 1, v -> incomingEdgeOf(v), e -> getEdgeSource(e));
+        return findPath(vertex, pruneFactor, v -> hasIncidentRefEdge(v) || inDegreeOf(v) == 0, v -> outDegreeOf(v) > 1 && hasIncidentRefEdge(v), this::getHeaviestIncomingEdge, e -> getEdgeSource(e));
+    }
+
+    private boolean hasIncidentRefEdge(final MultiDeBruijnVertex v) {
+        for (final MultiSampleEdge edge : incomingEdgesOf(v)) {
+            if (edge.isRef()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private MultiSampleEdge getHeaviestIncomingEdge(final MultiDeBruijnVertex v) {
+        final Set<MultiSampleEdge> incomingEdges = incomingEdgesOf(v);
+        return incomingEdges.size() == 1 ? incomingEdges.iterator().next() :
+                incomingEdges.stream().max(Comparator.comparingInt(MultiSampleEdge::getMultiplicity)).get();
     }
 
     /**
@@ -794,7 +809,13 @@ public class ReadThreadingGraph extends BaseGraph<MultiDeBruijnVertex, MultiSamp
      *  has a descendant with multiple outgoing edges before hitting the reference path
      */
     private List<MultiDeBruijnVertex> findPathDownwardsToHighestCommonDescendantOfReference(final MultiDeBruijnVertex vertex, final int pruneFactor) {
-        return findPath(vertex, pruneFactor, v -> isReferenceNode(v) || outDegreeOf(v) != 1, v -> isReferenceNode(v), v -> outgoingEdgeOf(v), e -> getEdgeTarget(e));
+        return findPath(vertex, pruneFactor, v -> isReferenceNode(v) || outDegreeOf(v) == 0, v -> isReferenceNode(v), this::getHeaviestOutgoingEdge, e -> getEdgeTarget(e));
+    }
+
+    private MultiSampleEdge getHeaviestOutgoingEdge(final MultiDeBruijnVertex v) {
+        final Set<MultiSampleEdge> outgoing = outgoingEdgesOf(v);
+        return outgoing.size() == 1 ? outgoing.iterator().next() :
+                outgoing.stream().max(Comparator.comparingInt(MultiSampleEdge::getMultiplicity)).get();
     }
 
     /**
