@@ -37,11 +37,14 @@ public class SomaticPriorModel {
 
     public double getPriorProbOfArtifactVersusVariant() { return artifactVsVariantPrior; }
 
+    // TODO: original -- build the new and delete this
     public void record(final VariantContext vc, final ErrorProbabilities errorProbabilities) {
         realVariantCount.add(1 - errorProbabilities.getErrorProbability());
         (vc.isSNP() ? realSNVCount : realIndelCount).add(1 - errorProbabilities.getErrorProbability());
         technicalArtifactCount.add(errorProbabilities.getTechnicalArtifactProbability());
     }
+
+    public void recordDatum(final int[] tumorADs, final double tumorLog10Odds
 
     // by default, clear accumulated data after learning
     public void learnAndClearAccumulatedData() {
@@ -63,5 +66,12 @@ public class SomaticPriorModel {
         realSNVCount.setValue(0);
         realIndelCount.setValue(0);
         technicalArtifactCount.setValue(0);
+    }
+
+    private static class Datum {
+        final double tumorLog10Odds;
+        final double artifactProb;
+        final int altCount;
+        final int totalCount;
     }
 }
