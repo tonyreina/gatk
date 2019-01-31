@@ -194,6 +194,38 @@ workflow Mutect2 {
     }
 
     Int m2_output_size = tumor_bam_size / scatter_count
+
+    if (run_ob_mm_filter) {
+        scatter (subintervals in SplitIntervals.interval_files ) {
+            call CollectF1R2Counts {
+                input:
+                    gatk_docker = gatk_docker,
+                    ref_fasta = ref_fasta,
+                    ref_fai = ref_fai,
+                    ref_dict = ref_dict,
+                    preemptible_attempts = preemptible_attempts,
+                    tumor_bam = tumor_bam,
+                    tumor_bai = tumor_bai,
+                    gatk_override = gatk_override,
+                    disk_space = tumor_bam_size + ref_size + disk_pad,
+                    intervals = subintervals,
+                    extra_intervals = ob_mm_filter_training_intervals,
+                    max_retries = max_retries
+            }
+        }
+
+        call LearnReadOrientationModel {
+            input:
+                alt_tables = CollectF1R2Counts.alt_table,
+                ref_histograms = CollectF1R2Counts.ref_histogram,
+                alt_histograms = CollectF1R2Counts.alt_histograms,
+                gatk_override = gatk_override,
+                gatk_docker = gatk_docker,
+                preemptible_attempts = preemptible_attempts,
+                max_retries = max_retries
+        }
+    }
+
     scatter (subintervals in SplitIntervals.interval_files ) {
         call M2 {
             input:
@@ -214,51 +246,14 @@ workflow Mutect2 {
                 m2_extra_args = m2_extra_args,
                 make_bamout = make_bamout_or_default,
                 artifact_prior_table = LearnReadOrientationModel.artifact_prior_table,
+                variants_for_contamination = variants_for_contamination,
+                variants_for_contamination_index = variants_for_contamination_index,
                 compress = compress,
                 gga_vcf = gga_vcf,
                 gga_vcf_idx = gga_vcf_idx,
                 gatk_override = gatk_override,
                 gatk_docker = gatk_docker,
                 disk_space = tumor_bam_size + normal_bam_size + ref_size + gnomad_vcf_size + m2_output_size + disk_pad
-        }
-
-        if (defined(variants_for_contamination)) {
-            call GetPileupSummaries as TumorPileups {
-                input:
-                    gatk_override = gatk_override,
-                    intervals = subintervals,
-                    ref_fasta = ref_fasta,
-                    ref_fai = ref_fai,
-                    ref_dict = ref_dict,
-                    preemptible_attempts = preemptible_attempts,
-                    max_retries = max_retries,
-                    gatk_docker = gatk_docker,
-                    bam = tumor_bam,
-                    bai = tumor_bai,
-                    variants_for_contamination = variants_for_contamination,
-                    variants_for_contamination_index = variants_for_contamination_index,
-                    disk_space = tumor_bam_size + ceil(size(variants_for_contamination, "GB") * small_input_to_output_multiplier) + disk_pad
-            }
-
-            if (defined(normal_bam)){
-                call GetPileupSummaries as NormalPileups {
-                    input:
-                        gatk_override = gatk_override,
-                        intervals = subintervals,
-                        ref_fasta = ref_fasta,
-                        ref_fai = ref_fai,
-                        ref_dict = ref_dict,
-                        preemptible_attempts = preemptible_attempts,
-                        max_retries = max_retries,
-                        gatk_docker = gatk_docker,
-                        bam = normal_bam,
-                        bai = normal_bai,
-                        variants_for_contamination = variants_for_contamination,
-                        variants_for_contamination_index = variants_for_contamination_index,
-                        disk_space = normal_bam_size + ceil(size(variants_for_contamination, "GB") * small_input_to_output_multiplier) + disk_pad
-
-                }
-            }
         }
 
         Float sub_vcf_size = size(M2.unfiltered_vcf, "GB")
@@ -322,39 +317,10 @@ workflow Mutect2 {
         }
     }
 
-    if (run_ob_mm_filter) {
-        call CollectF1R2Counts {
-            input:
-                gatk_docker = gatk_docker,
-                ref_fasta = ref_fasta,
-                ref_fai = ref_fai,
-                ref_dict = ref_dict,
-                preemptible_attempts = preemptible_attempts,
-                tumor_bam = tumor_bam,
-                tumor_bai = tumor_bai,
-                gatk_override = gatk_override,
-                disk_space = tumor_bam_size + ref_size + disk_pad,
-                intervals = if defined(ob_mm_filter_training_intervals) then ob_mm_filter_training_intervals else intervals,
-                max_retries = max_retries
-        }
-
-        call LearnReadOrientationModel {
-            input:
-                alt_table = CollectF1R2Counts.alt_table,
-                ref_histogram = CollectF1R2Counts.ref_histogram,
-                alt_histograms = CollectF1R2Counts.alt_histograms,
-                tumor_sample = CollectF1R2Counts.tumor_sample,
-                gatk_override = gatk_override,
-                gatk_docker = gatk_docker,
-                preemptible_attempts = preemptible_attempts,
-                max_retries = max_retries
-        }
-    }
-
     if (defined(variants_for_contamination)) {
         call MergePileupSummaries as MergeTumorPileups {
             input:
-                input_tables = TumorPileups.pileups,
+                input_tables = M2.tumor_pileups,
                 output_name = output_basename,
                 ref_dict = ref_dict,
                 gatk_override = gatk_override,
@@ -367,7 +333,7 @@ workflow Mutect2 {
         if (defined(normal_bam)){
             call MergePileupSummaries as MergeNormalPileups {
                 input:
-                    input_tables = NormalPileups.pileups,
+                    input_tables = M2.normal_pileups,
                     output_name = output_basename,
                     ref_dict = ref_dict,
                     gatk_override = gatk_override,
@@ -381,7 +347,6 @@ workflow Mutect2 {
         call CalculateContamination {
             input:
                 gatk_override = gatk_override,
-                intervals = intervals,
                 ref_fasta = ref_fasta,
                 ref_fai = ref_fai,
                 ref_dict = ref_dict,
@@ -590,6 +555,8 @@ task M2 {
     File? gga_vcf
     File? gga_vcf_idx
     File? artifact_prior_table
+    File? variants_for_contamination
+    File? variants_for_contamination_index
 
     String output_vcf = "output" + if compress then ".vcf.gz" else ".vcf"
     String output_vcf_index = output_vcf + if compress then ".tbi" else ".idx"
@@ -639,6 +606,21 @@ task M2 {
             ${true='--bam-output bamout.bam' false='' make_bamout} \
             ${"--orientation-bias-artifact-priors " + artifact_prior_table} \
             ${m2_extra_args}
+
+        ### GetPileupSummaries
+        # These must be created, even if they remain empty, as cromwell doesn't support optional output 
+        touch tumor-pileups.table
+        touch normal-pileups.table
+
+        if [[ -f "${variants_for_contamination}" ]]; then
+            gatk --java-options "-Xmx${command_mem}m" GetPileupSummaries -R ${ref_fasta} -I ${tumor_bam} ${"--interval-set-rule INTERSECTION -L " + intervals} \
+                -V ${variants_for_contamination} -L ${variants_for_contamination} -O tumor-pileups.table
+
+            if [[ -f ${normal_bam} ]]; then
+                gatk --java-options "-Xmx${command_mem}m" GetPileupSummaries -R ${ref_fasta} -I ${normal_bam} ${"--interval-set-rule INTERSECTION -L " + intervals} \
+                    -V ${variants_for_contamination} -L ${variants_for_contamination} -O normal-pileups.table
+            fi
+        fi
     >>>
 
     runtime {
@@ -657,6 +639,8 @@ task M2 {
         File output_bamOut = "bamout.bam"
         String tumor_sample = read_string("tumor_name.txt")
         String normal_sample = read_string("normal_name.txt")
+        File tumor_pileups = "tumor-pileups.table"
+        File normal_pileups = "normal-pileups.table"
     }
 }
 
@@ -764,54 +748,6 @@ task MergeBamOuts {
     }
 }
 
-task GetPileupSummaries {
-    # inputs
-    File? intervals
-    File ref_fasta
-    File ref_fai
-    File ref_dict
-    File bam
-    File bai
-    File? variants_for_contamination
-    File? variants_for_contamination_index
-
-    File? gatk_override
-
-    # runtime
-    Int? preemptible_attempts
-    Int? max_retries
-    String gatk_docker
-    Int? disk_space
-    Int? mem
-
-    # Mem is in units of GB but our command and memory runtime values are in MB
-    Int machine_mem = if defined(mem) then mem * 1000 else 3000
-    Int command_mem = machine_mem - 500
-
-    command {
-        set -e
-
-        export GATK_LOCAL_JAR=${default="/root/gatk.jar" gatk_override}
-
-        gatk --java-options "-Xmx${command_mem}m" GetPileupSummaries -R ${ref_fasta} -I ${bam} ${"--interval-set-rule INTERSECTION -L " + intervals} \
-            -V ${variants_for_contamination} -L ${variants_for_contamination} -O pileups.table
-    }
-
-    runtime {
-        docker: gatk_docker
-        bootDiskSizeGb: 12
-        memory: command_mem + " MB"
-        disks: "local-disk " + select_first([disk_space, 100]) + " HDD"
-        preemptible: select_first([preemptible_attempts, 10])
-        maxRetries: select_first([max_retries, 3])
-    }
-
-    output {
-        File pileups = "pileups.table"
-    }
-
-}
-
 task MergePileupSummaries {
     # input_tables needs to be optional because GetPileupSummaries is in an if-block
     Array[File?] input_tables
@@ -912,6 +848,7 @@ task CollectF1R2Counts {
 
     File? gatk_override
     File? intervals
+    File? extra_intervals
 
     # runtime
     Int? max_retries
@@ -938,9 +875,10 @@ task CollectF1R2Counts {
         gatk --java-options "-Xmx${command_mem}m" CollectF1R2Counts \
         -I ${tumor_bam} -R ${ref_fasta} \
         ${"-L " + intervals} \
-        -alt-table "$tumor_name-alt.tsv" \
-        -ref-hist "$tumor_name-ref.metrics" \
-        -alt-hist "$tumor_name-alt-depth1.metrics"
+        ${"-isr INTERSECTION -L " + extra_intervals} \
+        --alt-table "$tumor_name-alt.tsv" \
+        --ref-hist "$tumor_name-ref.metrics" \
+        --alt-hist "$tumor_name-alt-depth1.metrics"
     }
 
     runtime {
@@ -963,13 +901,12 @@ task CollectF1R2Counts {
 
 # Learning step of the orientation bias mixture model, which is the recommended orientation bias filter as of September 2018
 task LearnReadOrientationModel {
-    File alt_table
-    File ref_histogram
-    File? alt_histograms
+    Array[File] alt_tables
+    Array[File] ref_histograms
+    Array[File?] alt_histograms
+    Int alt_hist_length = length(alt_histograms)
 
     File? gatk_override
-    File? intervals
-    String tumor_sample
 
     # runtime
     Int? max_retries
@@ -988,11 +925,15 @@ task LearnReadOrientationModel {
         set -e
         export GATK_LOCAL_JAR=${default="/root/gatk.jar" gatk_override}
 
+        if [[ "${alt_hist_length}" > 0 ]]; then
+            ah_flag="-ah"
+        fi
+
         gatk --java-options "-Xmx${command_mem}m" LearnReadOrientationModel \
-        -alt-table ${alt_table} \
-        -ref-hist ${ref_histogram} \
-        -alt-hist ${alt_histograms} \
-        -O "${tumor_sample}-artifact-prior-table.tsv"
+        -at ${sep=" -at " alt_tables} \
+        -rh ${sep=" -rh " ref_histograms} \
+        $ah_flag ${sep=" -ah " alt_histograms} \
+        -O "artifact-prior-table.tsv"
     }
 
     runtime {
@@ -1006,14 +947,13 @@ task LearnReadOrientationModel {
     }
 
     output {
-        File artifact_prior_table = "${tumor_sample}-artifact-prior-table.tsv"
+        File artifact_prior_table = "artifact-prior-table.tsv"
     }
 
 }
 
 task CalculateContamination {
     # inputs
-    File? intervals
     File ref_fasta
     File ref_fai
     File ref_dict
@@ -1093,10 +1033,11 @@ task Filter {
         export GATK_LOCAL_JAR=${default="/root/gatk.jar" gatk_override}
 
         gatk --java-options "-Xmx${command_mem}m" FilterMutectCalls -V ${unfiltered_vcf} \
-      	    -O ${output_vcf} \
-      	    ${"--contamination-table " + contamination_table} \
-      	    ${"--tumor-segmentation " + maf_segments} \
-      	    ${m2_extra_filtering_args}
+            -O ${output_vcf} \
+            ${"--contamination-table " + contamination_table} \
+            ${"--tumor-segmentation " + maf_segments} \
+            ${"-L" + intervals} \
+            ${m2_extra_filtering_args}
     }
 
     runtime {

@@ -5,7 +5,7 @@ import htsjdk.samtools.metrics.MetricsFile;
 import htsjdk.samtools.util.Histogram;
 import org.broadinstitute.barclay.argparser.Argument;
 import org.broadinstitute.barclay.argparser.CommandLineProgramProperties;
-import org.broadinstitute.hellbender.cmdline.programgroups.CoverageAnalysisProgramGroup;
+import org.broadinstitute.hellbender.cmdline.programgroups.ShortVariantDiscoveryProgramGroup;
 import org.broadinstitute.hellbender.engine.*;
 import org.broadinstitute.hellbender.engine.filters.ReadFilter;
 import org.broadinstitute.hellbender.exceptions.UserException;
@@ -44,13 +44,16 @@ import static org.broadinstitute.hellbender.tools.walkers.readorientation.F1R2Fi
 @CommandLineProgramProperties(
         summary = "Collect F1R2 read counts for the Mutect2 orientation bias mixture model filter",
         oneLineSummary = "Collect F1R2 read counts for the Mutect2 orientation bias mixture model filter",
-        programGroup = CoverageAnalysisProgramGroup.class
+        programGroup = ShortVariantDiscoveryProgramGroup.class
 )
 
 public class CollectF1R2Counts extends LocusWalker {
     public static final String ALT_DATA_TABLE_LONG_NAME = "alt-table";
+    public static final String ALT_DATA_TABLE_SHORT_NAME = "at";
     public static final String ALT_DEPTH1_HISTOGRAM_LONG_NAME = "alt-hist";
+    public static final String ALT_DEPTH1_HISTOGRAM_SHORT_NAME = "ah";
     public static final String REF_SITE_METRICS_LONG_NAME = "ref-hist";
+    public static final String REF_SITE_METRICS_SHORT_NAME = "rh";
     public static final String MIN_MEDIAN_MQ_LONG_NAME = "median-mq";
     public static final String MIN_BASE_QUALITY_LONG_NAME = "min-bq";
     public static final String MAX_DEPTH_LONG_NAME = "max-depth";
@@ -61,13 +64,13 @@ public class CollectF1R2Counts extends LocusWalker {
     @Argument(fullName = MIN_BASE_QUALITY_LONG_NAME, doc = "exclude bases below this quality from pileup", optional = true)
     private int MINIMUM_BASE_QUALITY = 20;
 
-    @Argument(fullName = ALT_DATA_TABLE_LONG_NAME, doc = "a tab-separated output table of pileup data over alt sites")
+    @Argument(shortName = ALT_DATA_TABLE_SHORT_NAME, fullName = ALT_DATA_TABLE_LONG_NAME, doc = "a tab-separated output table of pileup data over alt sites")
     private File altDataTable = null;
 
-    @Argument(fullName = REF_SITE_METRICS_LONG_NAME, doc = "a metrics file with overall summary metrics and reference context-specific depth histograms")
+    @Argument(shortName = REF_SITE_METRICS_SHORT_NAME, fullName = REF_SITE_METRICS_LONG_NAME, doc = "a metrics file with overall summary metrics and reference context-specific depth histograms")
     private File refMetricsOutput = null;
 
-    @Argument(fullName = ALT_DEPTH1_HISTOGRAM_LONG_NAME, doc = "a histogram of alt sites with alt depth = 1")
+    @Argument(shortName = ALT_DEPTH1_HISTOGRAM_SHORT_NAME, fullName = ALT_DEPTH1_HISTOGRAM_LONG_NAME, doc = "a histogram of alt sites with alt depth = 1")
     private File altMetricsOutput = null;
 
     @Argument(fullName = MAX_DEPTH_LONG_NAME, doc = "sites with depth higher than this value will be grouped", optional = true)
