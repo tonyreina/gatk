@@ -14,6 +14,7 @@ import org.broadinstitute.hellbender.utils.GATKProtectedVariantContextUtils;
 import org.broadinstitute.hellbender.utils.IndexRange;
 import org.broadinstitute.hellbender.utils.MathUtils;
 import org.broadinstitute.hellbender.utils.QualityUtils;
+import org.broadinstitute.hellbender.utils.variant.GATKVCFConstants;
 
 import java.io.File;
 import java.util.*;
@@ -94,7 +95,11 @@ public class Mutect2FilteringEngine {
     public void accumulateData(final VariantContext vc) {
         final ErrorProbabilities errorProbabilities = new ErrorProbabilities(filters, vc, this);
         filters.forEach(f -> f.accumulateDataForLearning(vc, errorProbabilities, this));
-        somaticPriorModel.record(vc, errorProbabilities);
+        final int[] tumorADs = sumADsOverSamples(vc, true, false);
+        final double[] tumorLog10Odds = GATKProtectedVariantContextUtils.getAttributeAsDoubleArray(vc, GATKVCFConstants.TUMOR_LOD_KEY);
+
+        // TODO: this needs to get both technical and non-somatic error probabilities
+        somaticPriorModel.record(tumorADs, tumorLog10Odds, errorProbabilities.getErrorProbability(), vc.getType());
         thresholdCalculator.addArtifactProbability(errorProbabilities.getErrorProbability());
     }
 

@@ -7,6 +7,7 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.apache.commons.math3.distribution.BetaDistribution;
 import org.apache.commons.math3.distribution.EnumeratedIntegerDistribution;
 import org.apache.commons.math3.random.RandomDataGenerator;
+import org.broadinstitute.hellbender.tools.walkers.mutect.Mutect2Engine;
 import org.broadinstitute.hellbender.tools.walkers.mutect.MutectStats;
 import org.broadinstitute.hellbender.tools.walkers.mutect.SomaticLikelihoodsEngine;
 import org.broadinstitute.hellbender.tools.walkers.readorientation.BetaDistributionShape;
@@ -25,23 +26,15 @@ public class SomaticPriorModel {
     private final OptionalDouble callableSites;
     private static final double CONCENTRATION = 0.5;
     private static final int NUM_ITERATIONS = 5;
-
     final List<Datum> data = new ArrayList<>();
-
-    private final MutableDouble realVariantCount = new MutableDouble(0);
-    private final MutableDouble realSNVCount = new MutableDouble(0);
-    private final MutableDouble realIndelCount = new MutableDouble(0);
-    private final MutableDouble technicalArtifactCount = new MutableDouble(0);
 
     public SomaticPriorModel(final M2FiltersArgumentCollection MTFAC, final List<MutectStats> mutectStats) {
         log10SNVPrior = MTFAC.log10SNVPrior;
         log10IndelPrior = MTFAC.log10IndelPrior;
         log10NoVariantPrior = MathUtils.log10OneMinusPow10(MathUtils.log10SumLog10(log10SNVPrior, log10IndelPrior));
         artifactVsVariantPrior = MTFAC.initialPriorOfArtifactVersusVariant;
-
-        //callableSites = mutectStats.stream().filter(stat -> stat.getStatistic().equals(Mutect2Engine.CALLABLE_SITES_NAME))
-        //        .mapToDouble(MutectStats::getValue).findFirst();
-        callableSites = OptionalDouble.empty();
+        callableSites = mutectStats.stream().filter(stat -> stat.getStatistic().equals(Mutect2Engine.CALLABLE_SITES_NAME))
+                .mapToDouble(MutectStats::getValue).findFirst();
     }
 
     public double getLog10PriorOfSomaticVariant(final VariantContext vc) {
@@ -50,14 +43,7 @@ public class SomaticPriorModel {
 
     public double getPriorProbOfArtifactVersusVariant() { return artifactVsVariantPrior; }
 
-    // TODO: original -- build the new and delete this
-    public void record(final VariantContext vc, final ErrorProbabilities errorProbabilities) {
-        realVariantCount.add(1 - errorProbabilities.getErrorProbability());
-        (vc.isSNP() ? realSNVCount : realIndelCount).add(1 - errorProbabilities.getErrorProbability());
-        technicalArtifactCount.add(errorProbabilities.getTechnicalArtifactProbability());
-    }
-
-    public void recordDatum(final int[] tumorADs, final double[] tumorLog10Odds, final double artifactProbability, final VariantContext.Type type) {
+    public void record(final int[] tumorADs, final double[] tumorLog10Odds, final double artifactProbability, final VariantContext.Type type) {
         final int totalAD = (int) MathUtils.sum(tumorADs);
         for (int i = 0; i < tumorLog10Odds.length; i++) {
             data.add(new Datum(tumorLog10Odds[i], artifactProbability, tumorADs[i+1], totalAD, type));
@@ -69,7 +55,6 @@ public class SomaticPriorModel {
     public void learnAndClearAccumulatedData() {
         learn();
         data.clear();
-        clear();
     }
 
     public void learn() {
@@ -131,25 +116,16 @@ public class SomaticPriorModel {
 
             clusters = clusters.stream().filter(cluster -> !cluster.isEmpty()).collect(Collectors.toSet());
             clusters.forEach(AFCluster::relearn);
+
+            final double technicalArtifactCount = data.stream().mapToDouble(Datum::getArtifactProb).sum();
+            final long realSNVCount = clusters.stream().mapToInt(AFCluster::SNVCount).sum();
+            final long realIndelCount = clusters.stream().mapToInt(AFCluster::size).sum() - realSNVCount;
+            if (callableSites.isPresent()) {
+                log10SNVPrior = Math.log10(realSNVCount / callableSites.getAsDouble());
+                log10IndelPrior = Math.log10(realIndelCount / callableSites.getAsDouble());
+            }
+            artifactVsVariantPrior = (technicalArtifactCount + 1) / (realSNVCount + realIndelCount + technicalArtifactCount + 2);
         }
-
-
-
-
-
-        // global parameters
-        artifactVsVariantPrior = (technicalArtifactCount.getValue() + 1) / (realVariantCount.getValue() + technicalArtifactCount.getValue() + 2);
-        if (callableSites.isPresent()) {
-            log10SNVPrior = Math.log10(realSNVCount.getValue() / callableSites.getAsDouble());
-            log10IndelPrior = Math.log10(realIndelCount.getValue() / callableSites.getAsDouble());
-        }
-    }
-
-    public void clear() {
-        realVariantCount.setValue(0);
-        realSNVCount.setValue(0);
-        realIndelCount.setValue(0);
-        technicalArtifactCount.setValue(0);
     }
 
     private static class Datum {
@@ -227,6 +203,10 @@ public class SomaticPriorModel {
             members.add(datum);
             totalAssignments++;
         }
+
+        public int size() { return members.size(); }
+
+        public int SNVCount() { return (int) members.stream().filter(datum -> datum.getType() == VariantContext.Type.SNP).count(); }
 
         public boolean isEmpty() { return members.isEmpty(); }
 
