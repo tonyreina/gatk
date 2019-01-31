@@ -100,7 +100,7 @@ public class SomaticPriorModel {
                 // we may arbitrarily set the variant likelihood to the LOD and the non-variant likelihood to 0
                 posteriors[clusters.size() + 1] = log10NoVariantPrior;
 
-                MathUtils.normalizeLog10(posteriors);   //normalize in-place
+                MathUtils.normalizeLog10(posteriors, false, true);   //normalize in-place
 
                 final int index = new EnumeratedIntegerDistribution(rng.getRandomGenerator(), indices, posteriors).sample();
                 if (index < clusters.size()) {  // existing cluster
