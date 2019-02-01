@@ -247,7 +247,7 @@ public class SomaticPriorModel {
             final double alpha = betaShape.getAlpha();
             final double beta = betaShape.getBeta();
             return datum.getTumorLog10Odds() + g(alpha, beta) - g(alpha + altCount, beta + refCount)
-                    + g(1,1) - g(1 + altCount, 1 + refCount);
+                    -( g(1,1) - g(1 + altCount, 1 + refCount));
         }
 
         private static double g(final double... omega) {
