@@ -16,7 +16,13 @@ public class TumorEvidenceFilter extends Mutect2VariantFilter {
     @Override
     public double calculateErrorProbability(final VariantContext vc, final Mutect2FilteringEngine filteringInfo) {
         final double[] tumorLods = GATKProtectedVariantContextUtils.getAttributeAsDoubleArray(vc, GATKVCFConstants.TUMOR_LOD_KEY);
-        return posteriorProbabilityOfError(MathUtils.arrayMax(tumorLods), filteringInfo.getLog10PriorOfSomaticVariant(vc));
+        final int[] ADs = filteringInfo.sumADsOverSamples(vc, true, false);
+        final int maxIndex = MathUtils.maxElementIndex(tumorLods);
+        final double tumorLog10Odds = tumorLods[maxIndex];
+        final int refCount = ADs[0];
+        final int altCount = ADs[maxIndex];
+        final double tumorLog10OddsCorrectedForClustering = filteringInfo.clusteringCorrectedLog10Odds(tumorLog10Odds, altCount, refCount);
+        return posteriorProbabilityOfError(tumorLog10OddsCorrectedForClustering, filteringInfo.getLog10PriorOfSomaticVariant(vc));
     }
 
     @Override

@@ -1,7 +1,6 @@
 package org.broadinstitute.hellbender.tools.walkers.mutect.filtering;
 
 import htsjdk.variant.variantcontext.VariantContext;
-import org.apache.commons.lang3.mutable.MutableDouble;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.commons.math3.distribution.BetaDistribution;
@@ -19,6 +18,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 public class SomaticPriorModel {
+    private static final BetaDistributionShape FLAT_BETA = new BetaDistributionShape(1,1);
     private double log10SNVPrior;
     private double log10IndelPrior;
     private double log10NoVariantPrior;
@@ -28,6 +28,8 @@ public class SomaticPriorModel {
     private static final int NUM_ITERATIONS = 5;
     final List<Datum> data = new ArrayList<>();
 
+    List<Pair<Double, BetaDistributionShape>> alleleFractionClusters;
+
     public SomaticPriorModel(final M2FiltersArgumentCollection MTFAC, final List<MutectStats> mutectStats) {
         log10SNVPrior = MTFAC.log10SNVPrior;
         log10IndelPrior = MTFAC.log10IndelPrior;
@@ -35,18 +37,34 @@ public class SomaticPriorModel {
         artifactVsVariantPrior = MTFAC.initialPriorOfArtifactVersusVariant;
         callableSites = mutectStats.stream().filter(stat -> stat.getStatistic().equals(Mutect2Engine.CALLABLE_SITES_NAME))
                 .mapToDouble(MutectStats::getValue).findFirst();
+
+        // initialize clusters so that all weight (that is log-10(weight = 1) = 0) is in the flat beta prior used in the Mutect2 tumor LOD
+        alleleFractionClusters = new ArrayList<>();
+        alleleFractionClusters.add(ImmutablePair.of(0.0, FLAT_BETA));
     }
 
     public double getLog10PriorOfSomaticVariant(final VariantContext vc) {
         return vc.isSNP() ? (MathUtils.LOG10_ONE_THIRD + log10SNVPrior) : log10IndelPrior;
     }
 
+    /**
+     * Correct the tumor log-10 odds (ie the TLOD) from Mutect2 to account for allele fraction clustering
+     * @param tumorLog10Odds the original tumor log-10 odds of Mutect2 that assumes a flat prior on allele fractions
+     * @return the log-10 odds corrected for the allele fraction clustering learned by this class
+     */
+    public double clusteringCorrectedLog10Odds(final double tumorLog10Odds, final int altCount, final int refCount) {
+        return tumorLog10Odds + alleleFractionClusters.stream()
+                .mapToDouble(pair -> pair.getLeft() + log10OddsCorrection(FLAT_BETA, pair.getRight(), altCount, refCount))
+                .sum();
+    }
+
     public double getPriorProbOfArtifactVersusVariant() { return artifactVsVariantPrior; }
 
-    public void record(final int[] tumorADs, final double[] tumorLog10Odds, final double artifactProbability, final VariantContext.Type type) {
+    public void record(final int[] tumorADs, final double[] tumorLog10Odds, final double artifactProbability, final double nonSomaticProbability, final VariantContext.Type type) {
         final int totalAD = (int) MathUtils.sum(tumorADs);
+        // split into one-vs-all biallelics for clustering
         for (int i = 0; i < tumorLog10Odds.length; i++) {
-            data.add(new Datum(tumorLog10Odds[i], artifactProbability, tumorADs[i+1], totalAD, type));
+            data.add(new Datum(tumorLog10Odds[i], artifactProbability, nonSomaticProbability, tumorADs[i+1], totalAD, type));
         }
 
     }
@@ -64,8 +82,8 @@ public class SomaticPriorModel {
         Set<AFCluster> clusters = new HashSet<>();
 
         //initialize flat prior background cluster
-        final AFCluster background = AFCluster.makeBackgroundCuster(new BetaDistributionShape(1,1));
-        data.stream().limit(100).forEach(background::add);
+        final AFCluster background = AFCluster.makeBackgroundCuster(FLAT_BETA);
+        data.stream().limit(1).forEach(background::add);
         clusters.add(background);
 
         for (int iteration = 0; iteration < NUM_ITERATIONS; iteration++) {
@@ -74,8 +92,8 @@ public class SomaticPriorModel {
             for (final Datum datum : data) {
                 k++;
                 datum.unassign();
-                //stochastically assign to artifact
-                if (rng.nextUniform(0,1) < datum.artifactProb) {
+                //stochastically assign to error (other than sequencing error, which is handled within the clustering)
+                if (rng.nextUniform(0,1) < datum.getNonSequencingErrorProb()) {
                     continue;
                 }
 
@@ -128,23 +146,28 @@ public class SomaticPriorModel {
             }
             artifactVsVariantPrior = (technicalArtifactCount + 1) / (realSNVCount + realIndelCount + technicalArtifactCount + 2);
         }
+        alleleFractionClusters = clusters.stream()
+                .map(cluster -> ImmutablePair.of(cluster.getLog10ChineseRestaurantFactor(CONCENTRATION), cluster.betaShape))
+                .collect(Collectors.toList());
     }
 
     private static class Datum {
         private final double tumorLog10Odds;
         private final double artifactProb;
+        private final double nonSequencingErrorProb;
         private final int altCount;
         private final int totalCount;
         private final VariantContext.Type type;
 
         private AFCluster cluster = null;
 
-        public Datum(final double tumorLog10Odds, final double artifactProb, final int altCount, final int totalCount, final VariantContext.Type type) {
+        public Datum(final double tumorLog10Odds, final double artifactProb, final double nonSomaticProb, final int altCount, final int totalCount, final VariantContext.Type type) {
             this.tumorLog10Odds = tumorLog10Odds;
             this.artifactProb = artifactProb;
             this.altCount = altCount;
             this.totalCount = totalCount;
             this.type = type;
+            nonSequencingErrorProb = 1 - (1 - artifactProb) * (1 - nonSomaticProb);
         }
 
         public void unassign() {
@@ -162,6 +185,8 @@ public class SomaticPriorModel {
         public double getTumorLog10Odds() { return tumorLog10Odds; }
 
         public double getArtifactProb() { return artifactProb; }
+
+        public double getNonSequencingErrorProb() { return nonSequencingErrorProb; }
 
         public int getAltCount() { return altCount; }
 
@@ -244,14 +269,7 @@ public class SomaticPriorModel {
         public double log10Likelihood(final Datum datum) {
             final int altCount = datum.getAltCount();
             final int refCount = datum.getTotalCount() - altCount;
-            final double alpha = betaShape.getAlpha();
-            final double beta = betaShape.getBeta();
-            return datum.getTumorLog10Odds() + g(alpha, beta) - g(alpha + altCount, beta + refCount)
-                    -( g(1,1) - g(1 + altCount, 1 + refCount));
-        }
-
-        private static double g(final double... omega) {
-            return SomaticLikelihoodsEngine.log10DirichletNormalization(omega);
+            return datum.getTumorLog10Odds() + log10OddsCorrection(FLAT_BETA, betaShape, altCount, refCount);
         }
 
         private static BetaDistributionShape getFuzzyBinomial(final double mean, final double stdDevOverMean) {
@@ -260,5 +278,14 @@ public class SomaticPriorModel {
             final double beta = alphaPlusBeta - alpha;
             return new BetaDistributionShape(alpha, beta);
         }
+    }
+
+    protected static double log10OddsCorrection(final BetaDistributionShape originalBeta, final BetaDistributionShape newBeta, final int altCount, final int refCount) {
+        return g(newBeta.getAlpha(), newBeta.getBeta()) - g(newBeta.getAlpha() + altCount, newBeta.getBeta() + refCount)
+                - g(originalBeta.getAlpha(), originalBeta.getBeta()) + g(originalBeta.getAlpha() + altCount, originalBeta.getBeta() + refCount);
+    }
+
+    protected static double g(final double... omega) {
+        return SomaticLikelihoodsEngine.log10DirichletNormalization(omega);
     }
 }

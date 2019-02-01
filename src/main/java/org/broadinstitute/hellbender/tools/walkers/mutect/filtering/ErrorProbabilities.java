@@ -38,6 +38,7 @@ public final class ErrorProbabilities {
 
     public double getErrorProbability() { return errorProbability; }
     public double getTechnicalArtifactProbability() { return probabilitiesByType.get(ErrorType.ARTIFACT); }
+    public double getNonSomaticProbability() { return probabilitiesByType.get(ErrorType.NON_SOMATIC); }
     public Map<Mutect2VariantFilter, Double> getProbabilitiesByFilter() { return probabilitiesByFilter; }
 
 

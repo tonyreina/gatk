@@ -62,6 +62,17 @@ public class Mutect2FilteringEngine {
         return somaticPriorModel.getLog10PriorOfSomaticVariant(vc);
     }
 
+    /**
+     * Correct the tumor log-10 odds (ie the TLOD) from Mutect2 to account for allele fraction clustering
+     * @param tumorLog10Odds the original tumor log-10 odds of Mutect2 that assumes a flat prior on allele fractions
+     * @return the log-10 odds corrected for the allele fraction clustering learned by the {@link SomaticPriorModel}
+     */
+    public double clusteringCorrectedLog10Odds(final double tumorLog10Odds, final int altCount, final int refCount) {
+        return somaticPriorModel.clusteringCorrectedLog10Odds(tumorLog10Odds, altCount, refCount);
+    }
+
+    //TODO: need a method to renormalize log10Lieklihoods from SomaticPriorodel clustering
+
     public double getPriorProbOfArtifactVersusVariant() {
         return somaticPriorModel.getPriorProbOfArtifactVersusVariant();
     }
@@ -99,7 +110,8 @@ public class Mutect2FilteringEngine {
         final double[] tumorLog10Odds = GATKProtectedVariantContextUtils.getAttributeAsDoubleArray(vc, GATKVCFConstants.TUMOR_LOD_KEY);
 
         // TODO: this needs to get both technical and non-somatic error probabilities
-        somaticPriorModel.record(tumorADs, tumorLog10Odds, errorProbabilities.getErrorProbability(), vc.getType());
+        somaticPriorModel.record(tumorADs, tumorLog10Odds, errorProbabilities.getTechnicalArtifactProbability(),
+                errorProbabilities.getNonSomaticProbability(), vc.getType());
         thresholdCalculator.addArtifactProbability(errorProbabilities.getErrorProbability());
     }
 
