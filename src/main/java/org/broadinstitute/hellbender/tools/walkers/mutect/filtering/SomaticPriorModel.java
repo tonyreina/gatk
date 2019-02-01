@@ -154,8 +154,9 @@ public class SomaticPriorModel {
             }).sum();
 
             if (callableSites.isPresent()) {
-                log10SNVPrior = Math.log10(realSNVCount / callableSites.getAsDouble());
-                log10IndelPrior = Math.log10(realIndelCount / callableSites.getAsDouble());
+                log10SNVPrior = Math.log10(Math.max(realSNVCount / callableSites.getAsDouble(), 1.0e-8));
+                log10IndelPrior = Math.log10(Math.max(realIndelCount / callableSites.getAsDouble(), 1.0e-8));
+                log10NoVariantPrior = MathUtils.log10OneMinusPow10(MathUtils.log10SumLog10(log10SNVPrior, log10IndelPrior));
             }
             artifactVsVariantPrior = (technicalArtifactCount + 1) / (realSNVCount + realIndelCount + technicalArtifactCount + 2);
         }
