@@ -6,6 +6,7 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.apache.commons.math3.distribution.BetaDistribution;
 import org.apache.commons.math3.distribution.EnumeratedIntegerDistribution;
 import org.apache.commons.math3.random.RandomDataGenerator;
+import org.apache.commons.math3.special.Gamma;
 import org.broadinstitute.hellbender.tools.walkers.mutect.Mutect2Engine;
 import org.broadinstitute.hellbender.tools.walkers.mutect.MutectStats;
 import org.broadinstitute.hellbender.tools.walkers.mutect.SomaticLikelihoodsEngine;
@@ -263,7 +264,29 @@ public class SomaticPriorModel {
 
             if (isBackgroundCluster) {
                 //TODO: learn background cluster here
+                final double rate = 0.01;
+                final double maxStep = 0.1;
 
+                double alpha = betaShape.getAlpha();
+                double beta = betaShape.getBeta();
+
+                for (int epoch = 0; epoch < 10; epoch++) {
+                    for (final Datum datum : members) {
+                        final int alt = datum.getAltCount();
+                        final int total = datum.getTotalCount();
+                        final int ref = total - alt;
+
+                        //TODO re-use terms
+                        final double alphaGradient = Gamma.digamma(alpha + alt) - Gamma.digamma(total + alpha + beta) - Gamma.digamma(alpha) + Gamma.digamma(alpha + beta);
+                        final double betaGradient = Gamma.digamma(beta + ref) - Gamma.digamma(total + alpha + beta) - Gamma.digamma(beta) + Gamma.digamma(alpha + beta);
+
+                        alpha = alpha + rate * alphaGradient;
+                        beta = beta + rate * betaGradient;
+                    }
+                    int j = 10;
+                }
+
+                betaShape = new BetaDistributionShape(alpha, beta);
 
 
                 // TODO: THIS IS EMPTY!!!!!
