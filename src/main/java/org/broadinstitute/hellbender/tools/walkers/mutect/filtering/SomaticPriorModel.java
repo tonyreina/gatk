@@ -138,8 +138,21 @@ public class SomaticPriorModel {
             clusters.forEach(AFCluster::relearn);
 
             final double technicalArtifactCount = data.stream().mapToDouble(Datum::getArtifactProb).sum();
-            final long realSNVCount = clusters.stream().mapToInt(AFCluster::SNVCount).sum();
-            final long realIndelCount = clusters.stream().mapToInt(AFCluster::size).sum() - realSNVCount;
+            //final long realSNVCount = clusters.stream().mapToInt(AFCluster::SNVCount).sum();
+            //final long realIndelCount = clusters.stream().mapToInt(AFCluster::size).sum() - realSNVCount;
+
+            final double realSNVCount = data.stream().filter(data -> data.getType() == VariantContext.Type.SNP).mapToDouble(datum -> {
+                final double tumorLog10Odds = clusteringCorrectedLog10Odds(datum.getTumorLog10Odds(), datum.getAltCount(), datum.getTotalCount() - datum.getAltCount());
+                final double[] variantVsSequencingErrorProbs = MathUtils.normalizeFromLog10ToLinearSpace(new double[] { log10SNVPrior + tumorLog10Odds, log10NoVariantPrior});
+                return (1 - datum.getNonSequencingErrorProb()) * variantVsSequencingErrorProbs[0];
+            }).sum();
+
+            final double realIndelCount = data.stream().filter(data -> data.getType() != VariantContext.Type.SNP).mapToDouble(datum -> {
+                final double tumorLog10Odds = clusteringCorrectedLog10Odds(datum.getTumorLog10Odds(), datum.getAltCount(), datum.getTotalCount() - datum.getAltCount());
+                final double[] variantVsSequencingErrorProbs = MathUtils.normalizeFromLog10ToLinearSpace(new double[] { log10IndelPrior + tumorLog10Odds, log10NoVariantPrior});
+                return (1 - datum.getNonSequencingErrorProb()) * variantVsSequencingErrorProbs[0];
+            }).sum();
+
             if (callableSites.isPresent()) {
                 log10SNVPrior = Math.log10(realSNVCount / callableSites.getAsDouble());
                 log10IndelPrior = Math.log10(realIndelCount / callableSites.getAsDouble());
