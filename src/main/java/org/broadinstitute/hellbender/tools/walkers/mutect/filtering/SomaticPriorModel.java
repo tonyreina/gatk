@@ -69,8 +69,10 @@ public class SomaticPriorModel {
         clusters.add(background);
 
         for (int iteration = 0; iteration < NUM_ITERATIONS; iteration++) {
+            int k = 0;
             int[] indices = IntStream.range(0, clusters.size() + 2).toArray();
             for (final Datum datum : data) {
+                k++;
                 datum.unassign();
                 //stochastically assign to artifact
                 if (rng.nextUniform(0,1) < datum.artifactProb) {
@@ -93,7 +95,7 @@ public class SomaticPriorModel {
                     posteriors[i] = clusterLog10RelativePosteriors.get(i).getValue();
                 }
                 // the new cluster likelihood integrates over all AFs with a flat prior, which is exactly the original Mutect2 tumor LOD!
-                posteriors[clusters.size()] = datum.getTumorLog10Odds() + log10VariantPrior;
+                posteriors[clusters.size()] = datum.getTumorLog10Odds() + log10VariantPrior +
                         AFCluster.getNewClusterLog10ChineseRestaurantFactor(CONCENTRATION);
 
                 // note that the log-10 likelihood of no variant is WLOG zero because the tumor LOD is a log likelihood *ratio*
@@ -217,7 +219,7 @@ public class SomaticPriorModel {
                 members.clear();
                 return;
             }
-            final double mean = altCount / totalCount;
+            final double mean = Math.min(altCount / totalCount, 1 - STD_DEV_OVER_MEAN);
 
 
             if (isBackgroundCluster) {
