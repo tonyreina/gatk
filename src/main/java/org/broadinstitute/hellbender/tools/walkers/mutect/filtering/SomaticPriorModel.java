@@ -53,9 +53,9 @@ public class SomaticPriorModel {
      * @return the log-10 odds corrected for the allele fraction clustering learned by this class
      */
     public double clusteringCorrectedLog10Odds(final double tumorLog10Odds, final int altCount, final int refCount) {
-        return tumorLog10Odds + alleleFractionClusters.stream()
+        return tumorLog10Odds + MathUtils.log10SumLog10(alleleFractionClusters.stream()
                 .mapToDouble(pair -> pair.getLeft() + log10OddsCorrection(FLAT_BETA, pair.getRight(), altCount, refCount))
-                .sum();
+                .toArray());
     }
 
     public double getPriorProbOfArtifactVersusVariant() { return artifactVsVariantPrior; }
