@@ -75,12 +75,12 @@ public class SomaticPriorModel {
     public void learnAndClearAccumulatedData() {
         learn();
         data.clear();
-        AFCluster.clearAssignmentCount();
     }
 
     public void learn() {
         Utils.resetRandomGenerator();
         final RandomDataGenerator rng = Utils.getRandomDataGenerator();
+        AFCluster.clearAssignmentCount();
 
         Set<AFCluster> clusters = new HashSet<>();
 
