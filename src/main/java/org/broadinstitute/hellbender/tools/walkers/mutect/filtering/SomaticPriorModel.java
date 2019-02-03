@@ -176,7 +176,7 @@ public class SomaticPriorModel {
         alleleFractionClusters.stream().sorted(Comparator.comparingDouble(pair-> -pair.getLeft())).forEach(log10WeightAndShape -> {
             final double weight = Math.pow(10, log10WeightAndShape.getLeft());
             final double alpha = log10WeightAndShape.getRight().getAlpha();
-            final double beta = log10WeightAndShape.getRight().getAlpha();
+            final double beta = log10WeightAndShape.getRight().getBeta();
             result.add(ImmutablePair.of("cluster " + clusterIndex.getValue().toString(),
                     String.format("weight = %.3f, alpha = %.2f, beta = %.2f", weight, alpha, beta)));
             clusterIndex.increment();
