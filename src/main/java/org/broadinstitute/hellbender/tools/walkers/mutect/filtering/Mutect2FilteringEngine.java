@@ -158,7 +158,7 @@ public class Mutect2FilteringEngine {
      * @param filteringStatsFile
      */
     public void writeFilteringStats(final File filteringStatsFile) {
-        filteringOutputStats.writeFilteringStats(filteringStatsFile, getArtifactProbabilityThreshold());
+        filteringOutputStats.writeFilteringStats(filteringStatsFile, getArtifactProbabilityThreshold(), somaticPriorModel.clusteringMetadata());
     }
 
     private void buildFiltersList(final M2FiltersArgumentCollection MTFAC) {

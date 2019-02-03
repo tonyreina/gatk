@@ -1,5 +1,6 @@
 package org.broadinstitute.hellbender.tools.walkers.mutect.filtering;
 
+import org.apache.commons.lang3.tuple.Pair;
 import org.broadinstitute.hellbender.exceptions.UserException;
 import org.broadinstitute.hellbender.utils.MathUtils;
 import org.broadinstitute.hellbender.utils.tsv.DataLine;
@@ -9,6 +10,7 @@ import org.broadinstitute.hellbender.utils.tsv.TableWriter;
 import java.io.File;
 import java.io.IOException;
 import java.util.Collection;
+import java.util.List;
 
 public class FilterStats {
     public static final String THRESHOLD_METADATA_TAG = "threshold";
@@ -74,10 +76,13 @@ public class FilterStats {
         }
     }
 
-    public static void writeM2FilterSummary(final Collection<FilterStats> filterStats, final File outputTable,
+    public static void writeM2FilterSummary(final Collection<FilterStats> filterStats, final File outputTable, List<Pair<String, String>> clusteringMetadata,
                                             final double threshold, final double totalCalls, final double expectedTruePositives,
                                             final double expectedFalsePositives, final double expectedFalseNegatives) {
         try (Mutect2FilterStatsWriter writer = new Mutect2FilterStatsWriter(outputTable)) {
+            for (final Pair<String, String> pair : clusteringMetadata) {
+                writer.writeMetadata(pair.getKey(), pair.getValue());
+            }
             writer.writeMetadata(THRESHOLD_METADATA_TAG, Double.toString(round(threshold)));
             writer.writeMetadata(FDR_METADATA_TAG, Double.toString(round(expectedFalsePositives / totalCalls)));
             writer.writeMetadata(SENSITIVITY_METADATA_TAG, Double.toString(round(expectedTruePositives / (expectedTruePositives + expectedFalseNegatives))));

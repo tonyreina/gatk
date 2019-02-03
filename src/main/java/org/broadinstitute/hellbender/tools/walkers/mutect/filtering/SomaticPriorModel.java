@@ -1,6 +1,7 @@
 package org.broadinstitute.hellbender.tools.walkers.mutect.filtering;
 
 import htsjdk.variant.variantcontext.VariantContext;
+import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.commons.math3.distribution.BetaDistribution;
@@ -164,6 +165,24 @@ public class SomaticPriorModel {
         alleleFractionClusters = clusters.stream()
                 .map(cluster -> ImmutablePair.of(cluster.getLog10ChineseRestaurantFactor(CONCENTRATION), cluster.betaShape))
                 .collect(Collectors.toList());
+    }
+
+    public List<Pair<String, String>> clusteringMetadata() {
+        final List<Pair<String, String>> result = new ArrayList<>();
+        result.add(ImmutablePair.of("log10 SNV prior", Double.toString(log10SNVPrior)));
+        result.add(ImmutablePair.of("log10 Indel prior", Double.toString(log10IndelPrior)));
+
+        final MutableInt clusterIndex = new MutableInt(1);
+        alleleFractionClusters.stream().sorted(Comparator.comparingDouble(pair-> -pair.getLeft())).forEach(log10WeightAndShape -> {
+            final double weight = Math.pow(10, log10WeightAndShape.getLeft());
+            final double alpha = log10WeightAndShape.getRight().getAlpha();
+            final double beta = log10WeightAndShape.getRight().getAlpha();
+            result.add(ImmutablePair.of("cluster " + clusterIndex.getValue().toString(),
+                    String.format("weight = %.3f, alpha = %.2f, beta = %.2f", weight, alpha, beta)));
+            clusterIndex.increment();
+        });
+
+        return result;
     }
 
     private static class Datum {
