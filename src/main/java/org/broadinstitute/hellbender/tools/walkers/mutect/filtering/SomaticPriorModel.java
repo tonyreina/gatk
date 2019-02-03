@@ -127,11 +127,11 @@ public class SomaticPriorModel {
 
                 final int index = new EnumeratedIntegerDistribution(rng.getRandomGenerator(), indices, posteriors).sample();
                 if (index < clusters.size()) {  // existing cluster
-                    clusterLog10RelativePosteriors.get(index).getLeft().add(datum);
+                    datum.assign(clusterLog10RelativePosteriors.get(index).getLeft());
                 } else if (index == clusters.size()) { // new cluster
                     final double newClusterAlleleFraction = new BetaDistribution(rng.getRandomGenerator(), datum.getAltCount() + 1, datum.getTotalCount() - datum.getAltCount() + 1).sample();
                     final AFCluster newCluster = AFCluster.makeCluster(newClusterAlleleFraction);
-                    newCluster.add(datum);
+                    datum.assign(newCluster);
                     clusters.add(newCluster);
                     indices = IntStream.range(0, clusters.size() + 2).toArray();
                 }
