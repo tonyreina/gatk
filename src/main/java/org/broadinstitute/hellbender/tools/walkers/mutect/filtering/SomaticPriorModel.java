@@ -75,6 +75,7 @@ public class SomaticPriorModel {
     public void learnAndClearAccumulatedData() {
         learn();
         data.clear();
+        AFCluster.clearAssignmentCount();
     }
 
     public void learn() {
@@ -258,6 +259,10 @@ public class SomaticPriorModel {
         public void remove(final Datum datum) {
             members.remove(datum);
             totalAssignments--;
+        }
+
+        public static void clearAssignmentCount() {
+            totalAssignments = 0;
         }
 
         public void add(final Datum datum) {
