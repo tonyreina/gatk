@@ -21,6 +21,8 @@ public class TumorEvidenceFilter extends Mutect2VariantFilter {
         final double tumorLog10Odds = tumorLods[maxIndex];
         final int refCount = ADs[0];
         final int altCount = ADs[maxIndex + 1];
+
+        //TODO: move to filteringInfo?
         final double tumorLog10OddsCorrectedForClustering = filteringInfo.clusteringCorrectedLog10Odds(tumorLog10Odds, altCount, refCount);
         return posteriorProbabilityOfError(tumorLog10OddsCorrectedForClustering, filteringInfo.getLog10PriorOfSomaticVariant(vc));
     }

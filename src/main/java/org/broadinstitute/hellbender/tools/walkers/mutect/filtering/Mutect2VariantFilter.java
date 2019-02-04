@@ -53,6 +53,7 @@ public abstract class Mutect2VariantFilter {
         return 0;
     }
 
+    //TODO: move to filteringInfo
     @VisibleForTesting
     static double posteriorProbabilityOfError(final double log10OddsOfRealVersusError, final double log10PriorOfReal) {
         final double[] unweightedPosteriorOfRealAndError = new double[] {log10OddsOfRealVersusError + log10PriorOfReal,

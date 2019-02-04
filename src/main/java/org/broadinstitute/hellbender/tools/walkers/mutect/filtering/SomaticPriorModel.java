@@ -27,7 +27,7 @@ public class SomaticPriorModel {
     private double artifactVsVariantPrior;
     private final OptionalDouble callableSites;
     private static final double CONCENTRATION = 0.5;
-    private static final int NUM_ITERATIONS = 5;
+    private static final int NUM_ITERATIONS = 20;
     final List<Datum> data = new ArrayList<>();
 
     List<Pair<Double, BetaDistributionShape>> alleleFractionClusters;
