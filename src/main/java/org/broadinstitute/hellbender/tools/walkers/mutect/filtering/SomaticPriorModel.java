@@ -100,7 +100,7 @@ public class SomaticPriorModel {
                     continue;
                 }
 
-                final double log10VariantPrior = datum.getType() == VariantContext.Type.SNP ? log10SNVPrior : log10IndelPrior;
+                final double log10VariantPrior = datum.getType() == VariantContext.Type.SNP ? (MathUtils.LOG10_ONE_THIRD + log10SNVPrior) : log10IndelPrior;
 
                 // the posterior contains a prior that it's a variant, a CRP factor within the set of variant clusters,
                 // and the cluster likelihood
