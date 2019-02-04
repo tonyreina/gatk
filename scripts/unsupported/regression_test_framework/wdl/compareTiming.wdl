@@ -115,14 +115,20 @@ task CompareTimingTask {
         echo "truthElapsed = $truthElapsed" >> ${timing_diff_file_name}
         echo "callElapsed = $callElapsed" >> ${timing_diff_file_name}
 
-        timeDiff=$( python -c "print($truthElapsed - $callElapsed)" )
+        timeDiff=$( python -c "print($callElapsed - $truthElapsed)" )
         timeRatio=$( python -c "print($callElapsed/$truthElapsed)" )
 
+        echo "# timeDiff = callElapsed - truthElapsed"
         echo "timeDiff = $timeDiff"
+
+        echo "# timeRatio = callElapsed/truthElapsed"
         echo "timeRatio = $timeRatio"
 
-        echo "TimeDiff: $timeDiff" >> ${timing_diff_file_name}
-        echo "TimeRatio: $timeRatio" >> ${timing_diff_file_name}
+        echo "# timeDiff = callElapsed - truthElapsed" >> ${timing_diff_file_name}
+        echo "timeDiff: $timeDiff" >> ${timing_diff_file_name}
+
+        echo "# timeRatio = callElapsed/truthElapsed" >> ${timing_diff_file_name}
+        echo "timeRatio: $timeRatio" >> ${timing_diff_file_name}
     }
 
     ####################################################################################

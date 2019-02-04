@@ -1,0 +1,3 @@
+{
+	"monitoring_script": "gs://broad-dsde-methods-tbrookin/cromwell_monitoring_script.sh"
+}

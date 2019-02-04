@@ -106,45 +106,45 @@ workflow ToolComparisonWdl {
         }
 
 
-#        call analysis_1_wdl.GenotypeConcordanceTask {
-#            input:
-#                call_vcf                  = HaplotypeCallerTask.output_vcf,
-#                call_index                = HaplotypeCallerTask.output_vcf_index,
-#                call_sample               = "NA12878",
-#
-#                truth_vcf                 = truthVcf,
-#                truth_index               = truthIndex,
-#                truth_sample              = "NA12878",
-#
-#                interval_list             = interval_list_final,
-#
-#                output_base_name          = outputName,
-#
-#                gatk_docker               = gatk_docker,
-#                gatk_override             = gatk4_jar_override,
-#                mem                       = mem_gb,
-#                preemptible_attempts      = preemptible_attempts,
-#                disk_space_gb             = disk_space_gb,
-#                cpu                       = cpu,
-#                boot_disk_size_gb         = boot_disk_size_gb
-#        }
-#
-#        call analysis_2_wdl.Concordance {
-#            input:
-#                eval_vcf = HaplotypeCallerTask.output_vcf,
-#                eval_vcf_idx = HaplotypeCallerTask.output_vcf_index,
-#                truth_vcf = truthVcf,
-#                truth_vcf_idx = truthIndex,
-#                intervals = interval_list_final,
-#
-#                gatk_docker = gatk_docker,
-#                gatk_override = gatk4_jar_override,
-#                mem_gb = mem_gb,
-#                disk_space_gb = disk_space_gb,
-#                cpu = cpu,
-#                boot_disk_size_gb = boot_disk_size_gb,
-#                preemptible_attempts = preemptible_attempts
-#        }
+        call analysis_1_wdl.GenotypeConcordanceTask {
+            input:
+                call_vcf                  = HaplotypeCallerTask.output_vcf,
+                call_index                = HaplotypeCallerTask.output_vcf_index,
+                call_sample               = "NA12878",
+
+                truth_vcf                 = truthVcf,
+                truth_index               = truthIndex,
+                truth_sample              = "NA12878",
+
+                interval_list             = interval_list_final,
+
+                output_base_name          = outputName,
+
+                gatk_docker               = gatk_docker,
+                gatk_override             = gatk4_jar_override,
+                mem                       = mem_gb,
+                preemptible_attempts      = preemptible_attempts,
+                disk_space_gb             = disk_space_gb,
+                cpu                       = cpu,
+                boot_disk_size_gb         = boot_disk_size_gb
+        }
+
+        call analysis_2_wdl.Concordance {
+            input:
+                eval_vcf = HaplotypeCallerTask.output_vcf,
+                eval_vcf_idx = HaplotypeCallerTask.output_vcf_index,
+                truth_vcf = truthVcf,
+                truth_vcf_idx = truthIndex,
+                intervals = interval_list_final,
+
+                gatk_docker = gatk_docker,
+                gatk_override = gatk4_jar_override,
+                mem_gb = mem_gb,
+                disk_space_gb = disk_space_gb,
+                cpu = cpu,
+                boot_disk_size_gb = boot_disk_size_gb,
+                preemptible_attempts = preemptible_attempts
+        }
 
         call analysis_3_wdl.CompareTimingTask {
             input:
@@ -157,8 +157,24 @@ workflow ToolComparisonWdl {
     # ------------------------------------------------
     # Outputs:
     output {
-#        File vcf_out     = HaplotypeCallerTask.output_vcf
-#        File vcf_out_idx = HaplotypeCallerTask.output_vcf_index
+        Array[File] vcf_out     = HaplotypeCallerTask.output_vcf
+        Array[File] vcf_out_idx = HaplotypeCallerTask.output_vcf_index
+
+        Array[File] genotypeConcordance_summary_metrics     = GenotypeConcordanceTask.summary_metrics
+        Array[File] genotypeConcordance_detail_metrics      = GenotypeConcordanceTask.detail_metrics
+        Array[File] genotypeConcordance_contingency_metrics = GenotypeConcordanceTask.contingency_metrics
+
+        Array[File] variantCallerConcordance_fn              = Concordance.fn
+        Array[File] variantCallerConcordance_fn_idx          = Concordance.fn_idx
+        Array[File] variantCallerConcordance_fp              = Concordance.fp
+        Array[File] variantCallerConcordance_fp_idx          = Concordance.fp_idx
+        Array[File] variantCallerConcordance_tp              = Concordance.tp
+        Array[File] variantCallerConcordance_tp_idx          = Concordance.tp_idx
+        Array[File] variantCallerConcordance_ffn             = Concordance.ffn
+        Array[File] variantCallerConcordance_ffn_idx         = Concordance.ffn_idx
+        Array[File] variantCallerConcordance_summary         = Concordance.summary
+        Array[File] variantCallerConcordance_filter_analysis = Concordance.filter_analysis
+
         Array[File] timingMetrics  = CompareTimingTask.timing_diff
     }
 }
