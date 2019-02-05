@@ -47,12 +47,6 @@ public class SomaticClusteringModel {
     private static final AlleleFractionCluster NEW_CLUSTER = new BetaBinomialCluster(BetaDistributionShape.FLAT_BETA);
 
 
-
-
-    // TODO: replace with clusters
-    List<Pair<Double, BetaDistributionShape>> alleleFractionClusters;
-
-
     final List<Datum> data = new ArrayList<>();
     List<AlleleFractionCluster> clusters;
 
@@ -63,10 +57,6 @@ public class SomaticClusteringModel {
         log10VariantVsArtifactPrior = MTFAC.initialLog10PriorOfVariantVersusArtifact;
         callableSites = mutectStats.stream().filter(stat -> stat.getStatistic().equals(Mutect2Engine.CALLABLE_SITES_NAME))
                 .mapToDouble(MutectStats::getValue).findFirst();
-
-        // initialize clusters so that all weight (that is log-10(weight = 1) = 0) is in the flat beta prior used in the Mutect2 tumor LOD
-        alleleFractionClusters = new ArrayList<>();
-        alleleFractionClusters.add(ImmutablePair.of(0.0, BetaDistributionShape.FLAT_BETA));
 
         clusters = new ArrayList<>();
         clusters.add(SEQUENCING_ERROR_INDEX, new SequencingError());
@@ -180,7 +170,7 @@ public class SomaticClusteringModel {
 
             // TODO: prune clusters and adjust indices
             clusters = clusters.stream().filter(cluster -> !cluster.isEmpty()).collect(Collectors.toSet());
-            
+
             final List<List<Datum>> dataByCluster = clusters.stream().map(c -> new ArrayList<Datum>()).collect(Collectors.toList());
             for (final MutableInt datumIndex = new MutableInt(0); datumIndex.getValue() < clusterAssignments.size(); datumIndex.increment()) {
                 clusterAssignments.get(datumIndex.getValue()).ifPresent(c -> dataByCluster.get(c).add(data.get(datumIndex.getValue())));
@@ -219,7 +209,8 @@ public class SomaticClusteringModel {
         result.add(ImmutablePair.of("log10 Indel prior", Double.toString(log10IndelPrior)));
 
         final MutableInt clusterIndex = new MutableInt(1);
-        alleleFractionClusters.stream().sorted(Comparator.comparingDouble(pair-> -pair.getLeft())).forEach(log10WeightAndShape -> {
+        //TODO: clusters need their own reporting. . .
+        //alleleFractionClusters.stream().sorted(Comparator.comparingDouble(pair-> -pair.getLeft())).forEach(log10WeightAndShape -> {
             final double weight = Math.pow(10, log10WeightAndShape.getLeft());
             final double alpha = log10WeightAndShape.getRight().getAlpha();
             final double beta = log10WeightAndShape.getRight().getBeta();
