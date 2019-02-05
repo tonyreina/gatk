@@ -73,6 +73,7 @@ task CompareTimingTask {
     File call_timing_file
 
     String? base_timing_output_name
+    String? bam_name
 
     ####################################################################################
     # Runtime Inputs:
@@ -87,6 +88,7 @@ task CompareTimingTask {
     ####################################################################################
     # Default values:
     String timing_diff_file_name = if defined(base_timing_output_name) then basename(base_timing_output_name) + ".timingDiff.txt" else "timingDiff.txt"
+    String timing_csv_file_name = if defined(base_timing_output_name) then basename(base_timing_output_name) + ".timingDiff.csv" else "timingDiff.csv"
 
     ####################################################################################
     # Define default values and set up values for running:
@@ -108,6 +110,9 @@ task CompareTimingTask {
     command {
         truthElapsed=$( grep "Elapsed" ${truth_timing_file} | sed 's#.*[ \t]##')
         callElapsed=$( grep "Elapsed" ${call_timing_file} | sed 's#.*[ \t]##')
+
+        echo "Control,${bam_name},$truthElapsed" >> ${timing_diff_file_name}
+        echo "Test,${bam_name},$truthElapsed" >> ${timing_diff_file_name}
 
         echo "truthElapsed = $truthElapsed"
         echo "callElapsed = $callElapsed"
@@ -145,6 +150,7 @@ task CompareTimingTask {
     ####################################################################################
     # Outputs:
     output {
+        File timing_csv          = timing_csv_file_name
         File timing_diff         = timing_diff_file_name
         String run_title         = call_timing_file
     }

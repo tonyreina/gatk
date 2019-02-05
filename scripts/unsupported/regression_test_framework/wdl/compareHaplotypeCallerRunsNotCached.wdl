@@ -180,6 +180,7 @@ workflow ToolComparisonWdl {
             input:
                 truth_timing_file = BaselineRun.timing_info,
                 call_timing_file = testValue.timing_info,
+                bam_name = outputName,
                 base_timing_output_name = output_folder_base
         }
     }
@@ -187,6 +188,7 @@ workflow ToolComparisonWdl {
     call combine_timing_wdl.CombineTimingTask {
         input:
            timing_files = CompareTimingTask.timing_diff,
+           timing_files = CompareTimingTask.timing_csv_file_name,
            timing_names = CompareTimingTask.run_title
     }
 
@@ -197,6 +199,7 @@ workflow ToolComparisonWdl {
 #        File vcf_out_idx = HaplotypeCallerTask.output_vcf_index
         Array[File] timingMetrics  = CompareTimingTask.timing_diff
         File timingResutls = CombineTimingTask.combined_file
+        File timingTable = CombineTimingTask.combined_csv
     }
 
 
