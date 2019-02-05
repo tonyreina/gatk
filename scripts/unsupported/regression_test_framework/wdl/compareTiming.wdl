@@ -111,8 +111,8 @@ task CompareTimingTask {
         truthElapsed=$( grep "Elapsed" ${truth_timing_file} | sed 's#.*[ \t]##')
         callElapsed=$( grep "Elapsed" ${call_timing_file} | sed 's#.*[ \t]##')
 
-        echo "Control,${bam_name},$truthElapsed" >> ${timing_diff_file_name}
-        echo "Test,${bam_name},$truthElapsed" >> ${timing_diff_file_name}
+        echo "Control,${bam_name},$truthElapsed" >> ${timing_csv_file_name}
+        echo "Test,${bam_name},$truthElapsed" >> ${timing_csv_file_name}
 
         echo "truthElapsed = $truthElapsed"
         echo "callElapsed = $callElapsed"

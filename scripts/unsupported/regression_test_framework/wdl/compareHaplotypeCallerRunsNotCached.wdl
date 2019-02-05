@@ -188,9 +188,16 @@ workflow ToolComparisonWdl {
     call combine_timing_wdl.CombineTimingTask {
         input:
            timing_files = CompareTimingTask.timing_diff,
-           timing_files = CompareTimingTask.timing_csv_file_name,
+           timing_csvs = CompareTimingTask.timing_csv,
            timing_names = CompareTimingTask.run_title
     }
+
+    call combine_timing_wdl.PlotRuntimeTimingResults {
+        input:
+           timing_csv = CombineTimingTask.combined_csv,
+           bam_name = "NexPond-538834.bam"
+    }
+
 
     # ------------------------------------------------
     # Outputs:

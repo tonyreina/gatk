@@ -86,3 +86,41 @@ task CombineTimingTask {
     }
 
 }
+
+task PlotRuntimeTimingResults {
+
+    ####################################################################################
+    # Inputs:
+    File timing_csv
+    String bam_name
+
+    String? gatk_docker = "broadinstitute/gatk:gatkbase-2.0.2"
+
+    String boxplot = "plotboxplot.pdf"
+    String histogram = "plothisogram.pdf"
+
+    String dollar = "$"
+
+    ####################################################################################
+    # Do the work:
+    command <<<
+        gsutil cp gs://emeryj-testing/generatePerformanceGraphs.R .
+        Rscript generatePerformanceGraphs.R ${timing_csv} bamname
+    >>>
+
+    ####################################################################################
+    # Runtime Environment:
+    runtime {
+        cpu: 1
+        disks: "local-disk 30 HDD"
+        docker: "${gatk_docker}"
+    }
+
+    ####################################################################################
+    # Outputs:
+    output {
+        File combined_csv         = boxplot
+        File combined_file        = histogram
+    }
+
+}
