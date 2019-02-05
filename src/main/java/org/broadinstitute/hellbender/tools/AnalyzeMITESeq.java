@@ -219,6 +219,7 @@ public class AnalyzeMITESeq extends GATKTool {
                 writer.write('\t');
                 writer.write(Integer.toString(entry.getQualSum()));
                 writer.write('\t');
+                writer.write(String.format("%.1f\t", 1.*entry.getTrimLen()/entry.getCount()));
                 writer.write(Integer.toString(snvs.size()));
                 String sep = "\t";
                 for (final SNV snv : snvs) {
@@ -644,12 +645,14 @@ public class AnalyzeMITESeq extends GATKTool {
         private final SNV[] snvs;
         private long count; // number of observations of this set of SNVs
         private int qualSum; // summed quality scores of variant calls
+        private int trimLen;
         private final int hash;
 
-        public SNVCollectionCount( final List<SNV> snvs, final int qualSum ) {
+        public SNVCollectionCount( final List<SNV> snvs, final int qualSum, final int trimLen ) {
             this.snvs = snvs.toArray(emptyArray);
             this.count = 1;
             this.qualSum = qualSum;
+            this.trimLen = trimLen;
             int hashVal = 0;
             for ( final SNV snv : snvs ) {
                 hashVal = 47*hashVal + snv.hashCode();
@@ -671,10 +674,15 @@ public class AnalyzeMITESeq extends GATKTool {
         }
 
         public List<SNV> getSNVs() { return Arrays.asList(snvs); }
+
         public long getCount() { return count; }
+        public void bumpCount() { count += 1; }
+
         public int getQualSum() { return qualSum; }
         public void setQualSum( final int qualSum ) { this.qualSum = qualSum; }
-        public void bumpCount() { count += 1; }
+
+        public int getTrimLen() { return trimLen; }
+        public void setTrimLen( final int trimLen ) { this.trimLen = trimLen; }
 
         @Override
         public boolean equals( final Object obj ) {
@@ -830,21 +838,25 @@ public class AnalyzeMITESeq extends GATKTool {
         final List<Interval> refCoverage;
         final List<SNV> snvList;
         final int qualSum;
+        final int trimLen;
         final CodonTracker codonTracker;
 
         public ReadReport( final List<Interval> refCoverage,
                            final List<SNV> snvList,
                            final int qualSum,
+                           final int trimLen,
                            final CodonTracker codonTracker ) {
             this.refCoverage = refCoverage;
             this.snvList = snvList;
             this.qualSum = qualSum;
+            this.trimLen = trimLen;
             this.codonTracker = codonTracker;
         }
 
         public List<Interval> getRefCoverage() { return refCoverage; }
         public List<SNV> getVariations() { return snvList; }
         public int getQualSum() { return qualSum; }
+        public int getTrimLen() { return trimLen; }
         public CodonTracker getCodonTracker() { return codonTracker; }
     }
 
@@ -1013,6 +1025,7 @@ public class AnalyzeMITESeq extends GATKTool {
         int refCoverageBegin = 0;
         int refCoverageEnd = 0;
         int qualSum = 0;
+        int trimLen = 0;
 
         while ( true ) {
             if ( readIndex >= start ) {
@@ -1033,6 +1046,7 @@ public class AnalyzeMITESeq extends GATKTool {
                     }
                     variations.add(new SNV(refIndex, (byte)'-', readSeq[readIndex]));
                     qualSum += readQuals[readIndex];
+                    trimLen += 1;
                     codonTracker.push(refIndex, (byte)'+');
                 } else if ( cigarOperator == CigarOperator.M ) {
                     final byte call = (byte) (readSeq[readIndex] & LOWERCASE_MASK);
@@ -1052,6 +1066,7 @@ public class AnalyzeMITESeq extends GATKTool {
                         refCoverageBegin = refIndex;
                         refCoverageEnd = refIndex + 1;
                     }
+                    trimLen += 1;
                     codonTracker.push(refIndex, call);
                 } else if ( cigarOperator != CigarOperator.S ) {
                     throw new GATKException("unanticipated cigar operator");
@@ -1082,9 +1097,10 @@ public class AnalyzeMITESeq extends GATKTool {
                     variations.get(0).getRefIndex() - refCoverageList.get(0).getStart() < flankingLength ) {
                 variations.clear();
                 qualSum = 0;
+                trimLen = 0;
             }
         }
-        return new ReadReport(refCoverageList, variations, qualSum, codonTracker);
+        return new ReadReport(refCoverageList, variations, qualSum, trimLen, codonTracker);
     }
 
     private void applyReport( final ReadReport readReport, final int readLength ) {
@@ -1103,7 +1119,7 @@ public class AnalyzeMITESeq extends GATKTool {
         final int end = refCoverageList.get(refCoverageList.size()-1).getEnd();
         bumpIntervalCounter(start, end, readLength);
 
-        reportVariations(readReport.getVariations(), readReport.getQualSum());
+        reportVariations(readReport.getVariations(), readReport.getQualSum(), readReport.getTrimLen());
     }
 
     private void bumpIntervalCounter( final int start, final int end, final int readLength ) {
@@ -1114,12 +1130,13 @@ public class AnalyzeMITESeq extends GATKTool {
         intervalCounter.add(start, end);
     }
 
-    private void reportVariations( final List<SNV> variations, final int qualSum ) {
+    private void reportVariations( final List<SNV> variations, final int qualSum, final int trimLen ) {
         if ( !variations.isEmpty() ) {
-            final SNVCollectionCount newVal = new SNVCollectionCount(variations, qualSum);
+            final SNVCollectionCount newVal = new SNVCollectionCount(variations, qualSum, trimLen);
             final SNVCollectionCount oldVal = variationCounts.find(newVal);
             if ( oldVal != null ) {
-                oldVal.setQualSum(oldVal.getQualSum() + newVal.getQualSum());
+                oldVal.setQualSum(oldVal.getQualSum() + qualSum);
+                oldVal.setTrimLen(oldVal.getTrimLen() + trimLen);
                 oldVal.bumpCount();
             } else {
                 variationCounts.add(newVal);
@@ -1193,12 +1210,12 @@ public class AnalyzeMITESeq extends GATKTool {
         final List<SNV> variations1 = readReport1.getVariations();
         final List<SNV> variations2 = readReport2.getVariations();
         if ( variations1.isEmpty() ) {
-            reportVariations(variations2, readReport2.getQualSum());
+            reportVariations(variations2, readReport2.getQualSum(), readReport2.getTrimLen());
         } else if ( variations2.isEmpty() ) {
-            reportVariations(variations1, readReport1.getQualSum());
-        } else if ( new SNVCollectionCount(variations1, readReport1.getQualSum())
-                .equals(new SNVCollectionCount(variations2, readReport2.getQualSum())) ) {
-            reportVariations(variations1, readReport1.getQualSum());
+            reportVariations(variations1, readReport1.getQualSum(), readReport1.getTrimLen());
+        } else if ( new SNVCollectionCount(variations1, readReport1.getQualSum(), readReport1.getTrimLen())
+                .equals(new SNVCollectionCount(variations2, readReport2.getQualSum(), readReport2.getTrimLen())) ) {
+            reportVariations(variations1, readReport1.getQualSum(), readReport1.getTrimLen());
         }
     }
 }
