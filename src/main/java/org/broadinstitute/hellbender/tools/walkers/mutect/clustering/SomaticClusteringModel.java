@@ -9,9 +9,9 @@ import org.apache.commons.math3.distribution.EnumeratedIntegerDistribution;
 import org.apache.commons.math3.random.RandomDataGenerator;
 import org.broadinstitute.hellbender.tools.walkers.mutect.Mutect2Engine;
 import org.broadinstitute.hellbender.tools.walkers.mutect.MutectStats;
-import org.broadinstitute.hellbender.tools.walkers.mutect.SomaticLikelihoodsEngine;
 import org.broadinstitute.hellbender.tools.walkers.mutect.filtering.M2FiltersArgumentCollection;
 import org.broadinstitute.hellbender.tools.walkers.readorientation.BetaDistributionShape;
+import org.broadinstitute.hellbender.utils.IndexRange;
 import org.broadinstitute.hellbender.utils.MathUtils;
 import org.broadinstitute.hellbender.utils.Utils;
 
@@ -20,8 +20,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 public class SomaticClusteringModel {
-    //TODO: might need to move
-    public static final BetaDistributionShape FLAT_BETA = new BetaDistributionShape(1,1);
 
     private double log10SNVPrior;
     private double log10IndelPrior;
@@ -29,11 +27,34 @@ public class SomaticClusteringModel {
     private double log10VariantVsArtifactPrior;
     private final OptionalDouble callableSites;
 
+    private static final double INITIAL_HIGH_AF_WEIGHT = 0.01;
+    private static final double INITIAL_BACKGROUND_WEIGHT = 0.1;
+
+    private double log10HighAFWeight = Math.log10(INITIAL_HIGH_AF_WEIGHT);
+    private double log10BackgroundWeight = Math.log10(INITIAL_BACKGROUND_WEIGHT);
+    private double log10SparseClustersWeight = MathUtils.log10OneMinusX(MathUtils.log10SumLog10(log10HighAFWeight, log10BackgroundWeight));
+
     private static final double CONCENTRATION = 0.5;
     private static final int NUM_ITERATIONS = 5;
-    final List<Datum> data = new ArrayList<>();
 
+    private static final int SEQUENCING_ERROR_INDEX = 0;
+    private static final int HIGH_AF_INDEX = 1;
+    private static final int BACKGROUND_INDEX = 2;
+    private static final int OFFSET = 3;
+
+    private static final BetaDistributionShape INITIAL_HIGH_AF_BETA = new BetaDistributionShape(10, 1);
+    private static final BetaDistributionShape INITIAL_BACKGROUND_BETA = BetaDistributionShape.FLAT_BETA;
+    private static final AlleleFractionCluster NEW_CLUSTER = new BetaBinomialCluster(BetaDistributionShape.FLAT_BETA);
+
+
+
+
+    // TODO: replace with clusters
     List<Pair<Double, BetaDistributionShape>> alleleFractionClusters;
+
+
+    final List<Datum> data = new ArrayList<>();
+    List<AlleleFractionCluster> clusters;
 
     public SomaticClusteringModel(final M2FiltersArgumentCollection MTFAC, final List<MutectStats> mutectStats) {
         log10SNVPrior = MTFAC.log10SNVPrior;
@@ -45,7 +66,12 @@ public class SomaticClusteringModel {
 
         // initialize clusters so that all weight (that is log-10(weight = 1) = 0) is in the flat beta prior used in the Mutect2 tumor LOD
         alleleFractionClusters = new ArrayList<>();
-        alleleFractionClusters.add(ImmutablePair.of(0.0, FLAT_BETA));
+        alleleFractionClusters.add(ImmutablePair.of(0.0, BetaDistributionShape.FLAT_BETA));
+
+        clusters = new ArrayList<>();
+        clusters.add(SEQUENCING_ERROR_INDEX, new SequencingError());
+        clusters.add(HIGH_AF_INDEX, new BetaBinomialCluster(INITIAL_HIGH_AF_BETA));
+        clusters.add(BACKGROUND_INDEX, new BetaBinomialCluster(INITIAL_BACKGROUND_BETA));
     }
 
     public double getLog10PriorOfSomaticVariant(final VariantContext vc) {
@@ -60,9 +86,11 @@ public class SomaticClusteringModel {
      * @return the log-10 odds corrected for the allele fraction clustering learned by this class
      */
     public double clusteringCorrectedLog10Odds(final double tumorLog10Odds, final int altCount, final int refCount) {
-        return tumorLog10Odds + MathUtils.log10SumLog10(alleleFractionClusters.stream()
-                .mapToDouble(pair -> pair.getLeft() + log10OddsCorrection(FLAT_BETA, pair.getRight(), altCount, refCount))
-                .toArray());
+        return 0;
+        // TODO: reimplement!!!!
+        //return tumorLog10Odds + MathUtils.log10SumLog10(alleleFractionClusters.stream()
+                //.mapToDouble(pair -> pair.getLeft() + BetaBinomialCluster.log10OddsCorrection(FLAT_BETA, pair.getRight(), altCount, refCount))
+                //.toArray());
     }
 
     public void record(final int[] tumorADs, final double[] tumorLog10Odds, final double artifactProbability, final double nonSomaticProbability, final VariantContext.Type type) {
@@ -76,92 +104,112 @@ public class SomaticClusteringModel {
     public void learnAndClearAccumulatedData() {
         Utils.resetRandomGenerator();
         final RandomDataGenerator rng = Utils.getRandomDataGenerator();
-        AFCluster.clearAssignmentCount();
 
-        Set<AFCluster> clusters = new HashSet<>();
+        final List<OptionalInt> clusterAssignments = Collections.nCopies(data.size(), OptionalInt.empty());
+        final List<MutableInt> clusterCounts = Collections.nCopies(clusters.size(), new MutableInt(0));
+        final MutableInt totalSparseClusterCount = new MutableInt(0);
 
-        //initialize flat prior background cluster
-        final AFCluster background = AFCluster.makeBackgroundCuster(FLAT_BETA);
-        data.stream().limit(1).forEach(background::add);
-        clusters.add(background);
+        final MutableInt snvCount = new MutableInt(0);
+        final MutableInt indelCount = new MutableInt(0);
 
         for (int iteration = 0; iteration < NUM_ITERATIONS; iteration++) {
-            int k = 0;
-            int[] indices = IntStream.range(0, clusters.size() + 2).toArray();
-            for (final Datum datum : data) {
-                k++;
-                datum.unassign();
-                //stochastically assign to error (other than sequencing error, which is handled within the clustering)
+            for (int datumIndex = 0; datumIndex < data.size(); datumIndex++) {
+                final Datum datum = data.get(datumIndex);
+
+                // pop datum off its cluster and decrement the sparse cluster count if appropriate
+                clusterAssignments.get(datumIndex).ifPresent(c -> {
+                    clusterCounts.get(c).decrement();
+                    if (OFFSET <= c) {
+                        totalSparseClusterCount.decrement();
+                    }
+                    if (c != SEQUENCING_ERROR_INDEX) {
+                        (datum.getType() == VariantContext.Type.SNP ? snvCount : indelCount).decrement();
+                    }
+                });
+                clusterAssignments.set(datumIndex, OptionalInt.empty());
+
+                //stochastically assign to non-seqeuncing error (sequencing error is handled within the clustering)
                 if (rng.nextUniform(0,1) < datum.getNonSequencingErrorProb()) {
                     continue;
                 }
 
                 final double log10VariantPrior = datum.getType() == VariantContext.Type.SNP ? (MathUtils.LOG10_ONE_THIRD + log10SNVPrior) : log10IndelPrior;
 
-                // the posterior contains a prior that it's a variant, a CRP factor within the set of variant clusters,
-                // and the cluster likelihood
-                final List<Pair<AFCluster, Double>> clusterLog10RelativePosteriors = clusters.stream().map(cluster -> {
-                    final double posterior = log10VariantPrior + cluster.log10Likelihood(datum) + cluster.getLog10ChineseRestaurantFactor(CONCENTRATION);
-                        return ImmutablePair.of(cluster, posterior);
-                }).collect(Collectors.toList());
+                final double[] log10ClusterPosteriors = new IndexRange(0, clusters.size() + 1).mapToDouble(c -> {
+                    final double log10Likelihood = clusters.get(c).log10Likelihood(datum);
+                    if (c == SEQUENCING_ERROR_INDEX) {
+                        return log10NoVariantPrior + log10Likelihood;
+                    } else if (c == HIGH_AF_INDEX) {
+                        return log10VariantPrior + log10HighAFWeight + log10Likelihood;
+                    } else if (c == BACKGROUND_INDEX) {
+                        return log10VariantPrior + log10BackgroundWeight + log10Likelihood;
+                    } else if (c < clusters.size()) {   // existing sparse cluster
+                        return log10VariantPrior + log10SparseClustersWeight + Math.log10(clusterCounts.get(c).getValue())
+                                - Math.log10(totalSparseClusterCount.getValue() + CONCENTRATION)
+                                + log10Likelihood;
+                    } else {    // new sparse cluster
+                        return log10VariantPrior + log10SparseClustersWeight + Math.log10(CONCENTRATION)
+                                - Math.log10(totalSparseClusterCount.getValue() + CONCENTRATION)
+                                + NEW_CLUSTER.log10Likelihood(datum);
+                    }
+                });
 
-                // we'll make a list of all relative posteriors -- the existing clusters first, then a hypothetical new cluster,
-                // then sequencing error -- and sample from the normalized posteriors
-                final double[] posteriors = new double[clusters.size() + 2];
-                for (int i = 0; i < clusters.size(); i++) {
-                    posteriors[i] = clusterLog10RelativePosteriors.get(i).getValue();
-                }
-                // the new cluster likelihood integrates over all AFs with a flat prior, which is exactly the original Mutect2 tumor LOD!
-                posteriors[clusters.size()] = datum.getTumorLog10Odds() + log10VariantPrior +
-                        AFCluster.getNewClusterLog10ChineseRestaurantFactor(CONCENTRATION);
+                final double[] clusterPosteriors = MathUtils.normalizeLog10(log10ClusterPosteriors, false, false);   //normalize in-place
 
-                // note that the log-10 likelihood of no variant is WLOG zero because the tumor LOD is a log likelihood *ratio*
-                // we may arbitrarily set the variant likelihood to the LOD and the non-variant likelihood to 0
-                posteriors[clusters.size() + 1] = log10NoVariantPrior;
+                final int[] indices = IntStream.range(0, clusters.size() + 1).toArray();
+                final int clusterIndex = new EnumeratedIntegerDistribution(rng.getRandomGenerator(), indices, clusterPosteriors).sample();
 
-                MathUtils.normalizeLog10(posteriors, false, true);   //normalize in-place
-
-                final int index = new EnumeratedIntegerDistribution(rng.getRandomGenerator(), indices, posteriors).sample();
-                if (index < clusters.size()) {  // existing cluster
-                    datum.assign(clusterLog10RelativePosteriors.get(index).getLeft());
-                } else if (index == clusters.size()) { // new cluster
+                // make new cluster
+                if (clusterIndex == clusters.size()) {
                     final double newClusterAlleleFraction = new BetaDistribution(rng.getRandomGenerator(), datum.getAltCount() + 1, datum.getTotalCount() - datum.getAltCount() + 1).sample();
-                    final AFCluster newCluster = AFCluster.makeCluster(newClusterAlleleFraction);
-                    datum.assign(newCluster);
+                    final AlleleFractionCluster newCluster = new;
                     clusters.add(newCluster);
-                    indices = IntStream.range(0, clusters.size() + 2).toArray();
                 }
+
+                if (OFFSET <= clusterIndex) {
+                    totalSparseClusterCount.increment();
+                }
+
+                if (clusterIndex != SEQUENCING_ERROR_INDEX) {
+                    (datum.getType() == VariantContext.Type.SNP ? snvCount : indelCount).increment();
+                }
+
+                clusterAssignments.set(datumIndex, OptionalInt.of(clusterIndex));
+                clusterCounts.get(clusterIndex).increment();
             }
 
+            // TODO: prune clusters and adjust indices
             clusters = clusters.stream().filter(cluster -> !cluster.isEmpty()).collect(Collectors.toSet());
-            clusters.forEach(AFCluster::relearn);
+            
+            final List<List<Datum>> dataByCluster = clusters.stream().map(c -> new ArrayList<Datum>()).collect(Collectors.toList());
+            for (final MutableInt datumIndex = new MutableInt(0); datumIndex.getValue() < clusterAssignments.size(); datumIndex.increment()) {
+                clusterAssignments.get(datumIndex.getValue()).ifPresent(c -> dataByCluster.get(c).add(data.get(datumIndex.getValue())));
+            }
+
+            for (int clusterIndex = 0; clusterIndex < clusters.size(); clusterIndex++) {
+                clusters.get(clusterIndex).learn(dataByCluster.get(clusterIndex));
+            }
+
+            final double totalVariants = clusterCounts.get(HIGH_AF_INDEX).getValue() + clusterCounts.get(BACKGROUND_INDEX).getValue()
+                    + totalSparseClusterCount.getValue() + 0.0001;
+
+            log10HighAFWeight = Math.log10((double) clusterCounts.get(HIGH_AF_INDEX).getValue() / totalVariants);
+            log10BackgroundWeight = Math.log10((double) clusterCounts.get(BACKGROUND_INDEX).getValue() / totalVariants);
+            log10SparseClustersWeight = MathUtils.log10OneMinusX(MathUtils.log10SumLog10(log10HighAFWeight, log10BackgroundWeight));
 
             final double technicalArtifactCount = data.stream().mapToDouble(Datum::getArtifactProb).sum();
-            //final long realSNVCount = clusters.stream().mapToInt(AFCluster::SNVCount).sum();
-            //final long realIndelCount = clusters.stream().mapToInt(AFCluster::size).sum() - realSNVCount;
-
-            final double realSNVCount = data.stream().filter(data1 -> data1.getType() == VariantContext.Type.SNP).mapToDouble(datum -> {
-                final double tumorLog10Odds = clusteringCorrectedLog10Odds(datum.getTumorLog10Odds(), datum.getAltCount(), datum.getTotalCount() - datum.getAltCount());
-                final double[] variantVsSequencingErrorProbs = MathUtils.normalizeFromLog10ToLinearSpace(new double[] { log10SNVPrior + tumorLog10Odds, log10NoVariantPrior});
-                return (1 - datum.getNonSequencingErrorProb()) * variantVsSequencingErrorProbs[0];
-            }).sum();
-
-            final double realIndelCount = data.stream().filter(data1 -> data1.getType() != VariantContext.Type.SNP).mapToDouble(datum -> {
-                final double tumorLog10Odds = clusteringCorrectedLog10Odds(datum.getTumorLog10Odds(), datum.getAltCount(), datum.getTotalCount() - datum.getAltCount());
-                final double[] variantVsSequencingErrorProbs = MathUtils.normalizeFromLog10ToLinearSpace(new double[] { log10IndelPrior + tumorLog10Odds, log10NoVariantPrior});
-                return (1 - datum.getNonSequencingErrorProb()) * variantVsSequencingErrorProbs[0];
-            }).sum();
 
             if (callableSites.isPresent()) {
-                log10SNVPrior = Math.log10(Math.max(realSNVCount / callableSites.getAsDouble(), 1.0e-8));
-                log10IndelPrior = Math.log10(Math.max(realIndelCount / callableSites.getAsDouble(), 1.0e-8));
+                log10SNVPrior = Math.log10(Math.max(snvCount.getValue() / callableSites.getAsDouble(), 1.0e-8));
+                log10IndelPrior = Math.log10(Math.max(indelCount.getValue() / callableSites.getAsDouble(), 1.0e-8));
                 log10NoVariantPrior = MathUtils.log10OneMinusPow10(MathUtils.log10SumLog10(log10SNVPrior, log10IndelPrior));
             }
-            log10VariantVsArtifactPrior = Math.log10((realSNVCount + realIndelCount + 1) / (realSNVCount + realIndelCount + technicalArtifactCount + 2));
+            final int variantCount = snvCount.getValue() + indelCount.getValue();
+            log10VariantVsArtifactPrior = Math.log10((variantCount + 1) / (variantCount + technicalArtifactCount + 2));
         }
-        alleleFractionClusters = clusters.stream()
-                .map(cluster -> ImmutablePair.of(cluster.getLog10ChineseRestaurantFactor(CONCENTRATION), cluster.betaShape))
-                .collect(Collectors.toList());
+
+        //TODO: somehow the Chinese restaurant factors need to persist. . .
+
         data.clear();
     }
 
@@ -183,13 +231,4 @@ public class SomaticClusteringModel {
         return result;
     }
 
-    // TODO: should be abe to move stuff and make private
-    public static double log10OddsCorrection(final BetaDistributionShape originalBeta, final BetaDistributionShape newBeta, final int altCount, final int refCount) {
-        return g(newBeta.getAlpha(), newBeta.getBeta()) - g(newBeta.getAlpha() + altCount, newBeta.getBeta() + refCount)
-                - g(originalBeta.getAlpha(), originalBeta.getBeta()) + g(originalBeta.getAlpha() + altCount, originalBeta.getBeta() + refCount);
-    }
-
-    protected static double g(final double... omega) {
-        return SomaticLikelihoodsEngine.log10DirichletNormalization(omega);
-    }
 }
