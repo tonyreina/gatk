@@ -37,8 +37,11 @@ public class AnalyzeMITESeq extends GATKTool {
     @Argument(doc = "minimum size of analyzed portion of read", fullName = "min-length")
     private static int minLength = 15;
 
-    @Argument(doc = "minimum number of wt calls flanking variant", fullName = "flanking-length")
-    private static int flankingLength = 18;
+    @Argument(doc = "minimum number of wt calls flanking variant", fullName = "min-flanking-length")
+    private static int minFlankingLength = 18;
+
+    @Argument(doc = "minimum trimmed, aligned length", fullName = "min-trimmed-length")
+    private static int minTrimmedLength = 2*minFlankingLength + 1;
 
     @Argument(doc = "reference indices of the ORF (1-based, closed), for example, '134-180,214-238'", fullName = "orf")
     private static String orfCoords;
@@ -68,6 +71,7 @@ public class AnalyzeMITESeq extends GATKTool {
     private long nTotalBaseCalls = 0;
     private long[] refCoverage;
     private long[][] codonCounts;
+    private long[] trimmedLengthCounts;
     private IntervalCounter intervalCounter;
     private GATKRead read1;
 
@@ -186,6 +190,7 @@ public class AnalyzeMITESeq extends GATKTool {
         writeAACounts();
         writeAAFractions();
         writeReadCounts();
+        writeTrimmedLengthDistribution();
         return null;
     }
 
@@ -213,8 +218,8 @@ public class AnalyzeMITESeq extends GATKTool {
                 writer.write(Long.toString(entry.getCount()));
                 writer.write('\t');
                 final List<SNV> snvs = entry.getSNVs();
-                final int start = snvs.get(0).getRefIndex() - flankingLength;
-                final int end = snvs.get(snvs.size() - 1).getRefIndex() + flankingLength;
+                final int start = snvs.get(0).getRefIndex() - minFlankingLength;
+                final int end = snvs.get(snvs.size() - 1).getRefIndex() + minFlankingLength;
                 writer.write(Long.toString(intervalCounter.countSpanners(start, end)));
                 writer.write('\t');
                 writer.write(Integer.toString(entry.getQualSum()));
@@ -539,6 +544,24 @@ public class AnalyzeMITESeq extends GATKTool {
                     df.format(100.*Arrays.stream(refCoverage).sum()/nTotalBaseCalls) + "%\n");
         } catch ( final IOException ioe ) {
             throw new UserException("Can't write "+readCountsFile, ioe);
+        }
+    }
+
+    private void writeTrimmedLengthDistribution() {
+        if ( trimmedLengthCounts == null ) return;
+
+        final String trimCountsFile = outputFilePrefix + ".trimCounts";
+        try ( final OutputStreamWriter writer =
+                      new OutputStreamWriter(new BufferedOutputStream(BucketUtils.createFile(trimCountsFile))) ) {
+            final int len = trimmedLengthCounts.length;
+            for ( int idx = 0; idx != len; ++idx ) {
+                writer.write(Integer.toString(idx));
+                writer.write('\t');
+                writer.write(Long.toString(trimmedLengthCounts[idx]));
+                writer.write('\n');
+            }
+        } catch ( final IOException ioe ) {
+            throw new UserException("Can't write "+trimCountsFile, ioe);
         }
     }
 
@@ -949,6 +972,7 @@ public class AnalyzeMITESeq extends GATKTool {
     private ReadReport processRead( final GATKRead read ) {
         nReadsTotal += 1;
         nTotalBaseCalls += read.getLength();
+
         if (read.isUnmapped()) {
             nReadsUnmapped += 1;
             return null;
@@ -985,6 +1009,14 @@ public class AnalyzeMITESeq extends GATKTool {
             end -= 1;
         }
         end += minLength;
+
+        final int trimLen = end - start;
+        if ( trimmedLengthCounts == null ) {
+            trimmedLengthCounts = new long[trimLen + 1];
+        } else if ( trimLen >= trimmedLengthCounts.length ) {
+            trimmedLengthCounts = Arrays.copyOf(trimmedLengthCounts, trimLen + 1);
+        }
+        trimmedLengthCounts[trimLen] += 1;
 
         return analyze(read, start, end);
     }
@@ -1059,6 +1091,7 @@ public class AnalyzeMITESeq extends GATKTool {
                         variations.add(new SNV(refIndex, refSeq[refIndex], readSeq[readIndex]));
                         qualSum += readQuals[readIndex];
                     }
+                    trimLen += 1;
                     if ( refIndex == refCoverageEnd ) {
                         refCoverageEnd += 1;
                     } else {
@@ -1066,7 +1099,6 @@ public class AnalyzeMITESeq extends GATKTool {
                         refCoverageBegin = refIndex;
                         refCoverageEnd = refIndex + 1;
                     }
-                    trimLen += 1;
                     codonTracker.push(refIndex, call);
                 } else if ( cigarOperator != CigarOperator.S ) {
                     throw new GATKException("unanticipated cigar operator");
@@ -1093,11 +1125,10 @@ public class AnalyzeMITESeq extends GATKTool {
         refCoverageList.add(new Interval(refCoverageBegin, refCoverageEnd));
 
         if ( !variations.isEmpty() ) {
-            if ( refCoverageEnd - variations.get(variations.size() - 1).getRefIndex() < flankingLength ||
-                    variations.get(0).getRefIndex() - refCoverageList.get(0).getStart() < flankingLength ) {
+            if ( trimLen < minTrimmedLength ||
+                    refCoverageEnd - variations.get(variations.size() - 1).getRefIndex() < minFlankingLength ||
+                    variations.get(0).getRefIndex() - refCoverageList.get(0).getStart() < minFlankingLength ) {
                 variations.clear();
-                qualSum = 0;
-                trimLen = 0;
             }
         }
         return new ReadReport(refCoverageList, variations, qualSum, trimLen, codonTracker);
@@ -1125,7 +1156,7 @@ public class AnalyzeMITESeq extends GATKTool {
     private void bumpIntervalCounter( final int start, final int end, final int readLength ) {
         if ( intervalCounter == null ) {
             // add in an extra 50 bases to account for possible deletions--not a sensitive param, just for performance
-            intervalCounter = new IntervalCounter(refSeq.length, 2*readLength - 2*flankingLength + 50);
+            intervalCounter = new IntervalCounter(refSeq.length, 2*readLength - 2* minFlankingLength + 50);
         }
         intervalCounter.add(start, end);
     }
@@ -1200,7 +1231,7 @@ public class AnalyzeMITESeq extends GATKTool {
         final int start2 = refCoverage2.get(0).getStart();
         final int end1 = refCoverage1.get(refCoverage1.size()-1).getEnd();
         final int end2 = refCoverage2.get(refCoverage2.size()-1).getEnd();
-        if ( Math.min(end1, end2) - Math.max(start1, start2) >= 2*flankingLength+1 ) {
+        if ( Math.min(end1, end2) - Math.max(start1, start2) >= 2* minFlankingLength +1 ) {
             bumpIntervalCounter(Math.min(start1, start2), Math.max(end1, end2), readLength);
         } else {
             bumpIntervalCounter(start1, end1, readLength);
@@ -1213,8 +1244,8 @@ public class AnalyzeMITESeq extends GATKTool {
             reportVariations(variations2, readReport2.getQualSum(), readReport2.getTrimLen());
         } else if ( variations2.isEmpty() ) {
             reportVariations(variations1, readReport1.getQualSum(), readReport1.getTrimLen());
-        } else if ( new SNVCollectionCount(variations1, readReport1.getQualSum(), readReport1.getTrimLen())
-                .equals(new SNVCollectionCount(variations2, readReport2.getQualSum(), readReport2.getTrimLen())) ) {
+        } else if ( new SNVCollectionCount(variations1, 0, 0)
+                .equals(new SNVCollectionCount(variations2, 0, 0)) ) {
             reportVariations(variations1, readReport1.getQualSum(), readReport1.getTrimLen());
         }
     }
