@@ -1,4 +1,4 @@
-package org.broadinstitute.hellbender.tools.walkers.mutect.filtering;
+package org.broadinstitute.hellbender.tools.walkers.mutect.clustering;
 
 import htsjdk.variant.variantcontext.VariantContext;
 import org.apache.commons.lang3.mutable.MutableInt;
@@ -7,10 +7,10 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.apache.commons.math3.distribution.BetaDistribution;
 import org.apache.commons.math3.distribution.EnumeratedIntegerDistribution;
 import org.apache.commons.math3.random.RandomDataGenerator;
-import org.apache.commons.math3.special.Gamma;
 import org.broadinstitute.hellbender.tools.walkers.mutect.Mutect2Engine;
 import org.broadinstitute.hellbender.tools.walkers.mutect.MutectStats;
 import org.broadinstitute.hellbender.tools.walkers.mutect.SomaticLikelihoodsEngine;
+import org.broadinstitute.hellbender.tools.walkers.mutect.filtering.M2FiltersArgumentCollection;
 import org.broadinstitute.hellbender.tools.walkers.readorientation.BetaDistributionShape;
 import org.broadinstitute.hellbender.utils.MathUtils;
 import org.broadinstitute.hellbender.utils.Utils;
@@ -19,24 +19,27 @@ import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-public class SomaticPriorModel {
-    private static final BetaDistributionShape FLAT_BETA = new BetaDistributionShape(1,1);
+public class SomaticClusteringModel {
+    //TODO: might need to move
+    public static final BetaDistributionShape FLAT_BETA = new BetaDistributionShape(1,1);
+
     private double log10SNVPrior;
     private double log10IndelPrior;
     private double log10NoVariantPrior;
-    private double artifactVsVariantPrior;
+    private double log10VariantVsArtifactPrior;
     private final OptionalDouble callableSites;
+
     private static final double CONCENTRATION = 0.5;
-    private static final int NUM_ITERATIONS = 20;
+    private static final int NUM_ITERATIONS = 5;
     final List<Datum> data = new ArrayList<>();
 
     List<Pair<Double, BetaDistributionShape>> alleleFractionClusters;
 
-    public SomaticPriorModel(final M2FiltersArgumentCollection MTFAC, final List<MutectStats> mutectStats) {
+    public SomaticClusteringModel(final M2FiltersArgumentCollection MTFAC, final List<MutectStats> mutectStats) {
         log10SNVPrior = MTFAC.log10SNVPrior;
         log10IndelPrior = MTFAC.log10IndelPrior;
         log10NoVariantPrior = MathUtils.log10OneMinusPow10(MathUtils.log10SumLog10(log10SNVPrior, log10IndelPrior));
-        artifactVsVariantPrior = MTFAC.initialPriorOfArtifactVersusVariant;
+        log10VariantVsArtifactPrior = MTFAC.initialLog10PriorOfVariantVersusArtifact;
         callableSites = mutectStats.stream().filter(stat -> stat.getStatistic().equals(Mutect2Engine.CALLABLE_SITES_NAME))
                 .mapToDouble(MutectStats::getValue).findFirst();
 
@@ -49,6 +52,8 @@ public class SomaticPriorModel {
         return vc.isSNP() ? (MathUtils.LOG10_ONE_THIRD + log10SNVPrior) : log10IndelPrior;
     }
 
+    public double getLog10PriorProbOfVariantVersusArtifact() { return log10VariantVsArtifactPrior; }
+
     /**
      * Correct the tumor log-10 odds (ie the TLOD) from Mutect2 to account for allele fraction clustering
      * @param tumorLog10Odds the original tumor log-10 odds of Mutect2 that assumes a flat prior on allele fractions
@@ -60,24 +65,15 @@ public class SomaticPriorModel {
                 .toArray());
     }
 
-    public double getPriorProbOfArtifactVersusVariant() { return artifactVsVariantPrior; }
-
     public void record(final int[] tumorADs, final double[] tumorLog10Odds, final double artifactProbability, final double nonSomaticProbability, final VariantContext.Type type) {
         final int totalAD = (int) MathUtils.sum(tumorADs);
         // split into one-vs-all biallelics for clustering
         for (int i = 0; i < tumorLog10Odds.length; i++) {
             data.add(new Datum(tumorLog10Odds[i], artifactProbability, nonSomaticProbability, tumorADs[i+1], totalAD, type));
         }
-
     }
 
-    // by default, clear accumulated data after learning
     public void learnAndClearAccumulatedData() {
-        learn();
-        data.clear();
-    }
-
-    public void learn() {
         Utils.resetRandomGenerator();
         final RandomDataGenerator rng = Utils.getRandomDataGenerator();
         AFCluster.clearAssignmentCount();
@@ -144,13 +140,13 @@ public class SomaticPriorModel {
             //final long realSNVCount = clusters.stream().mapToInt(AFCluster::SNVCount).sum();
             //final long realIndelCount = clusters.stream().mapToInt(AFCluster::size).sum() - realSNVCount;
 
-            final double realSNVCount = data.stream().filter(data -> data.getType() == VariantContext.Type.SNP).mapToDouble(datum -> {
+            final double realSNVCount = data.stream().filter(data1 -> data1.getType() == VariantContext.Type.SNP).mapToDouble(datum -> {
                 final double tumorLog10Odds = clusteringCorrectedLog10Odds(datum.getTumorLog10Odds(), datum.getAltCount(), datum.getTotalCount() - datum.getAltCount());
                 final double[] variantVsSequencingErrorProbs = MathUtils.normalizeFromLog10ToLinearSpace(new double[] { log10SNVPrior + tumorLog10Odds, log10NoVariantPrior});
                 return (1 - datum.getNonSequencingErrorProb()) * variantVsSequencingErrorProbs[0];
             }).sum();
 
-            final double realIndelCount = data.stream().filter(data -> data.getType() != VariantContext.Type.SNP).mapToDouble(datum -> {
+            final double realIndelCount = data.stream().filter(data1 -> data1.getType() != VariantContext.Type.SNP).mapToDouble(datum -> {
                 final double tumorLog10Odds = clusteringCorrectedLog10Odds(datum.getTumorLog10Odds(), datum.getAltCount(), datum.getTotalCount() - datum.getAltCount());
                 final double[] variantVsSequencingErrorProbs = MathUtils.normalizeFromLog10ToLinearSpace(new double[] { log10IndelPrior + tumorLog10Odds, log10NoVariantPrior});
                 return (1 - datum.getNonSequencingErrorProb()) * variantVsSequencingErrorProbs[0];
@@ -161,11 +157,12 @@ public class SomaticPriorModel {
                 log10IndelPrior = Math.log10(Math.max(realIndelCount / callableSites.getAsDouble(), 1.0e-8));
                 log10NoVariantPrior = MathUtils.log10OneMinusPow10(MathUtils.log10SumLog10(log10SNVPrior, log10IndelPrior));
             }
-            artifactVsVariantPrior = (technicalArtifactCount + 1) / (realSNVCount + realIndelCount + technicalArtifactCount + 2);
+            log10VariantVsArtifactPrior = Math.log10((realSNVCount + realIndelCount + 1) / (realSNVCount + realIndelCount + technicalArtifactCount + 2));
         }
         alleleFractionClusters = clusters.stream()
                 .map(cluster -> ImmutablePair.of(cluster.getLog10ChineseRestaurantFactor(CONCENTRATION), cluster.betaShape))
                 .collect(Collectors.toList());
+        data.clear();
     }
 
     public List<Pair<String, String>> clusteringMetadata() {
@@ -186,162 +183,8 @@ public class SomaticPriorModel {
         return result;
     }
 
-    private static class Datum {
-        private final double tumorLog10Odds;
-        private final double artifactProb;
-        private final double nonSequencingErrorProb;
-        private final int altCount;
-        private final int totalCount;
-        private final VariantContext.Type type;
-
-        private AFCluster cluster = null;
-
-        public Datum(final double tumorLog10Odds, final double artifactProb, final double nonSomaticProb, final int altCount, final int totalCount, final VariantContext.Type type) {
-            this.tumorLog10Odds = tumorLog10Odds;
-            this.artifactProb = artifactProb;
-            this.altCount = altCount;
-            this.totalCount = totalCount;
-            this.type = type;
-            nonSequencingErrorProb = 1 - (1 - artifactProb) * (1 - nonSomaticProb);
-        }
-
-        public void unassign() {
-            if (cluster != null) {
-                cluster.remove(this);
-                cluster = null;
-            }
-        }
-
-        public void assign(final AFCluster cluster) {
-            this.cluster = cluster;
-            cluster.add(this);
-        }
-
-        public double getTumorLog10Odds() { return tumorLog10Odds; }
-
-        public double getArtifactProb() { return artifactProb; }
-
-        public double getNonSequencingErrorProb() { return nonSequencingErrorProb; }
-
-        public int getAltCount() { return altCount; }
-
-        public int getTotalCount() { return totalCount; }
-
-        public VariantContext.Type getType() { return type; }
-
-        public AFCluster getCluster() { return cluster; }
-    }
-
-    // an allele fraction cluster is a beta prior on allele fraction with a method for
-    // adjusting a tumor log-likelihood to account for this beta prior as opposed to the flat prior used for Mutect2's
-    // initial calls
-    private static class AFCluster {
-        private BetaDistributionShape betaShape;
-        private static double STD_DEV_OVER_MEAN = 0.01;
-        private final Set<Datum> members = new HashSet<>();    // the indices of data in this cluster
-        private final boolean isBackgroundCluster;
-
-        private static int totalAssignments = 0;
-
-        public static AFCluster makeBackgroundCuster(final BetaDistributionShape betaShape) {
-            return new AFCluster(betaShape, true);
-        }
-
-        public static AFCluster makeCluster(final double alleleFraction) {
-            return new AFCluster(getFuzzyBinomial(alleleFraction, STD_DEV_OVER_MEAN), false);
-        }
-
-        private AFCluster(final BetaDistributionShape betaShape, final boolean isBackgroundCluster) {
-            this.betaShape = betaShape;
-            this.isBackgroundCluster = isBackgroundCluster;
-        }
-
-        public void remove(final Datum datum) {
-            members.remove(datum);
-            totalAssignments--;
-        }
-
-        public static void clearAssignmentCount() {
-            totalAssignments = 0;
-        }
-
-        public void add(final Datum datum) {
-            members.add(datum);
-            totalAssignments++;
-        }
-
-        public int size() { return members.size(); }
-
-        public int SNVCount() { return (int) members.stream().filter(datum -> datum.getType() == VariantContext.Type.SNP).count(); }
-
-        public boolean isEmpty() { return members.isEmpty(); }
-
-        public void relearn() {
-            final double altCount = members.stream().mapToDouble(Datum::getAltCount).sum();
-            final long totalCount = members.stream().mapToInt(Datum::getTotalCount).sum();
-            if (totalCount == 0) {
-                members.clear();
-                return;
-            }
-            final double mean = Math.min(altCount / totalCount, 1 - STD_DEV_OVER_MEAN);
-
-
-            if (isBackgroundCluster) {
-                //TODO: learn background cluster here
-                final double rate = 0.01;
-                final double maxStep = 0.1;
-
-                double alpha = betaShape.getAlpha();
-                double beta = betaShape.getBeta();
-
-                for (int epoch = 0; epoch < 10; epoch++) {
-                    for (final Datum datum : members) {
-                        final int alt = datum.getAltCount();
-                        final int total = datum.getTotalCount();
-                        final int ref = total - alt;
-
-                        //TODO re-use terms
-                        final double alphaGradient = Gamma.digamma(alpha + alt) - Gamma.digamma(total + alpha + beta) - Gamma.digamma(alpha) + Gamma.digamma(alpha + beta);
-                        final double betaGradient = Gamma.digamma(beta + ref) - Gamma.digamma(total + alpha + beta) - Gamma.digamma(beta) + Gamma.digamma(alpha + beta);
-
-                        alpha = alpha + rate * alphaGradient;
-                        beta = beta + rate * betaGradient;
-                    }
-                    int j = 10;
-                }
-
-                betaShape = new BetaDistributionShape(alpha, beta);
-
-
-                // TODO: THIS IS EMPTY!!!!!
-            } else {
-                betaShape = getFuzzyBinomial(mean, STD_DEV_OVER_MEAN);
-            }
-        }
-
-        public double getLog10ChineseRestaurantFactor(final double concentration) {
-            return Math.log10((double) members.size() / (totalAssignments + concentration));
-        }
-
-        public static double getNewClusterLog10ChineseRestaurantFactor(final double concentration) {
-            return Math.log10(concentration / (totalAssignments + concentration));
-        }
-
-        public double log10Likelihood(final Datum datum) {
-            final int altCount = datum.getAltCount();
-            final int refCount = datum.getTotalCount() - altCount;
-            return datum.getTumorLog10Odds() + log10OddsCorrection(FLAT_BETA, betaShape, altCount, refCount);
-        }
-
-        private static BetaDistributionShape getFuzzyBinomial(final double mean, final double stdDevOverMean) {
-            final double alphaPlusBeta = ((1 - mean) / (mean * MathUtils.square(stdDevOverMean))) - 1;
-            final double alpha = mean * alphaPlusBeta;
-            final double beta = alphaPlusBeta - alpha;
-            return new BetaDistributionShape(alpha, beta);
-        }
-    }
-
-    protected static double log10OddsCorrection(final BetaDistributionShape originalBeta, final BetaDistributionShape newBeta, final int altCount, final int refCount) {
+    // TODO: should be abe to move stuff and make private
+    public static double log10OddsCorrection(final BetaDistributionShape originalBeta, final BetaDistributionShape newBeta, final int altCount, final int refCount) {
         return g(newBeta.getAlpha(), newBeta.getBeta()) - g(newBeta.getAlpha() + altCount, newBeta.getBeta() + refCount)
                 - g(originalBeta.getAlpha(), originalBeta.getBeta()) + g(originalBeta.getAlpha() + altCount, originalBeta.getBeta() + refCount);
     }

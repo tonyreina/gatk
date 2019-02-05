@@ -12,14 +12,14 @@ import java.util.Optional;
 public abstract class Mutect2VariantFilter {
     public Mutect2VariantFilter() { }
 
-    public double errorProbability(final VariantContext vc, final Mutect2FilteringEngine filteringInfo) {
-        return requiredAnnotations().stream().allMatch(vc::hasAttribute) ? calculateErrorProbability(vc, filteringInfo) : 0;
+    public double errorProbability(final VariantContext vc, final Mutect2FilteringEngine filteringEngine) {
+        return requiredAnnotations().stream().allMatch(vc::hasAttribute) ? calculateErrorProbability(vc, filteringEngine) : 0;
     }
 
-    protected abstract double calculateErrorProbability(final VariantContext vc, final Mutect2FilteringEngine filteringInfo);
+    protected abstract double calculateErrorProbability(final VariantContext vc, final Mutect2FilteringEngine filteringEngine);
 
     // by default do nothing, but we may override to allow some filters to learn their parameters in the first pass of {@link FilterMutectCalls}
-    protected void accumulateDataForLearning(final VariantContext vc, final ErrorProbabilities errorProbabilities, final Mutect2FilteringEngine filteringInfo) { }
+    protected void accumulateDataForLearning(final VariantContext vc, final ErrorProbabilities errorProbabilities, final Mutect2FilteringEngine filteringEngine) { }
     protected void clearAccumulatedData() { }
     protected void learnParameters() { }
     protected void learnParametersAndClearAccumulatedData() {
@@ -53,14 +53,4 @@ public abstract class Mutect2VariantFilter {
         return 0;
     }
 
-    //TODO: move to filteringInfo
-    @VisibleForTesting
-    static double posteriorProbabilityOfError(final double log10OddsOfRealVersusError, final double log10PriorOfReal) {
-        final double[] unweightedPosteriorOfRealAndError = new double[] {log10OddsOfRealVersusError + log10PriorOfReal,
-                MathUtils.log10OneMinusPow10(log10PriorOfReal)};
-
-        final double[] posteriorOfRealAndError = MathUtils.normalizeFromLog10ToLinearSpace(unweightedPosteriorOfRealAndError);
-
-        return posteriorOfRealAndError[1];
-    }
 }

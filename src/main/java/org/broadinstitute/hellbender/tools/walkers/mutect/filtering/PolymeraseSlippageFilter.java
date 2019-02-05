@@ -25,7 +25,7 @@ public class PolymeraseSlippageFilter extends Mutect2VariantFilter {
     public ErrorType errorType() { return ErrorType.ARTIFACT; }
 
     @Override
-    public double calculateErrorProbability(final VariantContext vc, final Mutect2FilteringEngine filteringInfo) {
+    public double calculateErrorProbability(final VariantContext vc, final Mutect2FilteringEngine filteringEngine) {
 
         final int[] rpa = vc.getAttributeAsList(GATKVCFConstants.REPEATS_PER_ALLELE_KEY).stream()
                 .mapToInt(o -> Integer.parseInt(String.valueOf(o))).toArray();
@@ -39,7 +39,7 @@ public class PolymeraseSlippageFilter extends Mutect2VariantFilter {
         if (referenceSTRBaseCount >= minSlippageLength && Math.abs(numPCRSlips) == 1) {
             // calculate the p-value that out of n reads we would have at least k slippage reads
             // if this p-value is small we keep the variant (reject the PCR slippage hypothesis)
-            final int[] ADs = filteringInfo.sumADsOverSamples(vc, true, false);
+            final int[] ADs = filteringEngine.sumADsOverSamples(vc, true, false);
             if (ADs == null || ADs.length < 2) {
                 return 0;
             }
@@ -56,7 +56,8 @@ public class PolymeraseSlippageFilter extends Mutect2VariantFilter {
                 likelihoodGivenSlippageArtifact = new BinomialDistribution(null, depth, slippageRate).probability(ADs[1]);
             }
 
-            return posteriorProbabilityOfError(Math.log10(likelihoodGivenRealVariant/likelihoodGivenSlippageArtifact), filteringInfo.getLog10PriorOfSomaticVariant(vc));
+            final double log10Odds = Math.log10(likelihoodGivenRealVariant / likelihoodGivenSlippageArtifact);
+            return filteringEngine.posteriorProbabilityOfError(vc, log10Odds);
         } else {
             return 0;
         }

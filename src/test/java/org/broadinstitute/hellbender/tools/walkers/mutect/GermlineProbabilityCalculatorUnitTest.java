@@ -5,6 +5,7 @@ import htsjdk.variant.variantcontext.VariantContext;
 import htsjdk.variant.variantcontext.VariantContextBuilder;
 import htsjdk.variant.vcf.VCFConstants;
 import org.broadinstitute.hellbender.GATKBaseTest;
+import org.broadinstitute.hellbender.tools.walkers.mutect.filtering.GermlineProbabilityCalculator;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
@@ -12,7 +13,6 @@ import org.testng.annotations.Test;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
-import java.util.OptionalDouble;
 
 /**
  * Created by David Benjamin on 5/5/17.

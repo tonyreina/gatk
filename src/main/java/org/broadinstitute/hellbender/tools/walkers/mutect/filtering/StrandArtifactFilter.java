@@ -41,13 +41,13 @@ public class StrandArtifactFilter extends Mutect2VariantFilter {
     public ErrorType errorType() { return ErrorType.ARTIFACT; }
 
     @Override
-    public double calculateErrorProbability(final VariantContext vc, final Mutect2FilteringEngine filteringInfo) {
-        final EStep probabilities = calculateArtifactProbabilities(vc, filteringInfo);
+    public double calculateErrorProbability(final VariantContext vc, final Mutect2FilteringEngine filteringEngine) {
+        final EStep probabilities = calculateArtifactProbabilities(vc, filteringEngine);
         return probabilities.forwardArtifactProbability + probabilities.reverseArtifactProbability;
     }
 
-    public EStep calculateArtifactProbabilities(final VariantContext vc, final Mutect2FilteringEngine filteringInfo) {
-        final int[] totalCounts = filteringInfo.sumADsOverSamples(vc, true, true);
+    public EStep calculateArtifactProbabilities(final VariantContext vc, final Mutect2FilteringEngine filteringEngine) {
+        final int[] totalCounts = filteringEngine.sumADsOverSamples(vc, true, true);
         final int[] forwardCounts = vc.getAttributeAsIntList(GATKVCFConstants.FORWARD_STRAND_COUNT_KEY, 0).stream().mapToInt(x->x).toArray();
         final int forwardCount = (int) MathUtils.sum(forwardCounts);
         final int reverseCount = (int) MathUtils.sum(totalCounts) - forwardCount;
@@ -59,8 +59,8 @@ public class StrandArtifactFilter extends Mutect2VariantFilter {
     }
 
     @Override
-    protected void accumulateDataForLearning(final VariantContext vc, final ErrorProbabilities errorProbabilities, final Mutect2FilteringEngine filteringInfo) {
-        final EStep eStep = calculateArtifactProbabilities(vc, filteringInfo);
+    protected void accumulateDataForLearning(final VariantContext vc, final ErrorProbabilities errorProbabilities, final Mutect2FilteringEngine filteringEngine) {
+        final EStep eStep = calculateArtifactProbabilities(vc, filteringEngine);
         eSteps.add(eStep);
     }
 

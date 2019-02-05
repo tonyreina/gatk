@@ -15,7 +15,7 @@ public class ReadOrientationFilter extends Mutect2VariantFilter {
     @Override
     public ErrorType errorType() { return ErrorType.ARTIFACT; }
 
-    public double calculateErrorProbability(final VariantContext vc, final Mutect2FilteringEngine filteringInfo) {
+    public double calculateErrorProbability(final VariantContext vc, final Mutect2FilteringEngine filteringEngine) {
 
         if (! vc.isSNP()){
             return 0;
@@ -23,7 +23,7 @@ public class ReadOrientationFilter extends Mutect2VariantFilter {
 
         final List<ImmutablePair<Integer, Double>> depthsAndPosteriors = new ArrayList<>();
 
-        vc.getGenotypes().stream().filter(filteringInfo::isTumor)
+        vc.getGenotypes().stream().filter(filteringEngine::isTumor)
                 .filter(g -> g.hasExtendedAttribute(GATKVCFConstants.ROF_POSTERIOR_KEY) && g.hasExtendedAttribute(GATKVCFConstants.ROF_PRIOR_KEY))
                 .forEach(g -> {
                     final double artifactPosterior = GATKProtectedVariantContextUtils.getAttributeAsDouble(g, GATKVCFConstants.ROF_POSTERIOR_KEY, 0.0);

@@ -1,4 +1,4 @@
-package org.broadinstitute.hellbender.tools.walkers.mutect;
+package org.broadinstitute.hellbender.tools.walkers.mutect.filtering;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
@@ -6,6 +6,7 @@ import com.google.common.primitives.Doubles;
 import htsjdk.variant.variantcontext.Allele;
 import htsjdk.variant.variantcontext.VariantContext;
 import htsjdk.variant.vcf.VCFConstants;
+import org.broadinstitute.hellbender.tools.walkers.mutect.Mutect2Engine;
 import org.broadinstitute.hellbender.utils.GATKProtectedVariantContextUtils;
 import org.broadinstitute.hellbender.utils.IndexRange;
 import org.broadinstitute.hellbender.utils.MathUtils;
@@ -39,10 +40,8 @@ public class GermlineProbabilityCalculator {
         final int nAltAlleles = populationAlleleFrequencies.length;
         final double[] normalLog10OddsOrFlat = normalLog10Odds.orElseGet(() -> Doubles.toArray(Collections.nCopies(nAltAlleles,0)));
         // note the minus sign required because Mutect has the convention that this is log odds of allele *NOT* being in the normal
-        final double[] germlineLog10Posteriors = new IndexRange(0, nAltAlleles).mapToDouble(n ->
+        return new IndexRange(0, nAltAlleles).mapToDouble(n ->
                 log10PosteriorProbabilityOfGermlineVariant(-normalLog10OddsOrFlat[n], log10OddsOfGermlineHetVsSomatic[n], log10OddsOfGermlineHomAltVsSomatic[n], populationAlleleFrequencies[n], log10PriorProbOfSomaticEvent));
-
-        return germlineLog10Posteriors;
     }
 
     @VisibleForTesting
@@ -107,9 +106,5 @@ public class GermlineProbabilityCalculator {
 
         return log10ProbGermline - MathUtils.log10SumLog10(log10ProbGermline, log10ProbSomatic);
 
-    }
-
-    private static double[] getArrayAttribute(final VariantContext vc, final String attribute) {
-        return GATKProtectedVariantContextUtils.getAttributeAsDoubleArray(vc, attribute, () -> null, -1);
     }
 }

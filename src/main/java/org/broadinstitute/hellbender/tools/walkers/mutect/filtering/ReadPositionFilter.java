@@ -18,7 +18,7 @@ public class ReadPositionFilter extends HardFilter {
     public ErrorType errorType() { return ErrorType.ARTIFACT; }
 
     @Override
-    public boolean isArtifact(final VariantContext vc, final Mutect2FilteringEngine filteringInfo) {
+    public boolean isArtifact(final VariantContext vc, final Mutect2FilteringEngine filteringEngine) {
         final List<Integer> readPositionByAllele = vc.getAttributeAsIntList(ReadPosition.KEY, 0);
 
         // a negative value is possible due to a bug: https://github.com/broadinstitute/gatk/issues/5492

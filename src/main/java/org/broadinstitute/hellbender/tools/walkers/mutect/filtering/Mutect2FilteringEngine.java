@@ -10,6 +10,7 @@ import org.apache.commons.lang3.mutable.MutableDouble;
 import org.apache.commons.math3.util.MathArrays;
 import org.broadinstitute.hellbender.tools.walkers.mutect.Mutect2Engine;
 import org.broadinstitute.hellbender.tools.walkers.mutect.MutectStats;
+import org.broadinstitute.hellbender.tools.walkers.mutect.clustering.SomaticClusteringModel;
 import org.broadinstitute.hellbender.utils.GATKProtectedVariantContextUtils;
 import org.broadinstitute.hellbender.utils.IndexRange;
 import org.broadinstitute.hellbender.utils.MathUtils;
@@ -35,12 +36,12 @@ public class Mutect2FilteringEngine {
      */
     private final ThresholdCalculator thresholdCalculator;
     private final FilteringOutputStats filteringOutputStats;
-    private final SomaticPriorModel somaticPriorModel;
+    private final SomaticClusteringModel somaticClusteringModel;
 
     public Mutect2FilteringEngine(M2FiltersArgumentCollection MTFAC, final VCFHeader vcfHeader, final File mutectStatsTable) {
         thresholdCalculator = new ThresholdCalculator(MTFAC.thresholdStrategy, MTFAC.initialPosteriorThreshold, MTFAC.maxFalsePositiveRate, MTFAC.fScoreBeta);
 
-        somaticPriorModel = new SomaticPriorModel(MTFAC, mutectStatsTable.exists() ? MutectStats.readFromFile(mutectStatsTable) : Collections.emptyList());
+        somaticClusteringModel = new SomaticClusteringModel(MTFAC, mutectStatsTable.exists() ? MutectStats.readFromFile(mutectStatsTable) : Collections.emptyList());
 
         normalSamples = vcfHeader.getMetaDataInInputOrder().stream()
                 .filter(line -> line.getKey().equals(Mutect2Engine.NORMAL_SAMPLE_KEY_IN_VCF_HEADER))
@@ -56,25 +57,45 @@ public class Mutect2FilteringEngine {
 
     public boolean isTumor(final Genotype genotype) { return !isNormal(genotype); }
 
-    public double getArtifactProbabilityThreshold() { return thresholdCalculator.getThreshold(); }
-
-    public double getLog10PriorOfSomaticVariant(final VariantContext vc) {
-        return somaticPriorModel.getLog10PriorOfSomaticVariant(vc);
-    }
+    /**
+     * Maximum probability that a potential variant is not a true somatic mutation.  Variants with error probabilities
+     * below this threshold are called; variants with error probabilities above are filtered.
+     */
+    public double getThreshold() { return thresholdCalculator.getThreshold(); }
 
     /**
-     * Correct the tumor log-10 odds (ie the TLOD) from Mutect2 to account for allele fraction clustering
-     * @param tumorLog10Odds the original tumor log-10 odds of Mutect2 that assumes a flat prior on allele fractions
-     * @return the log-10 odds corrected for the allele fraction clustering learned by the {@link SomaticPriorModel}
+     * posterior probability of sequencing error accounting for the allele fraction clustering learned by the
+     * {@link SomaticClusteringModel}
+     * @param vc
+     * @param tumorLog10Odds original log10 odds emitted by Mutect2 using a flat prior on allele fraction
+     * @param altCount number of alt reads
+     * @param refCount number of ref reads
+     * @return
      */
-    public double clusteringCorrectedLog10Odds(final double tumorLog10Odds, final int altCount, final int refCount) {
-        return somaticPriorModel.clusteringCorrectedLog10Odds(tumorLog10Odds, altCount, refCount);
+    public double probabilityOfSequencingError(final VariantContext vc, final double tumorLog10Odds, final int altCount, final int refCount) {
+        final double correctedLog10Odds = somaticClusteringModel.clusteringCorrectedLog10Odds(tumorLog10Odds, altCount, refCount);
+        return posteriorProbabilityOfError(correctedLog10Odds, getLog10PriorOfSomaticVariant(vc));
     }
 
-    //TODO: need a method to renormalize log10Lieklihoods from SomaticPriorodel clustering
+    public double posteriorProbabilityOfError(final VariantContext vc, final double log10OddsOfRealVersusError) {
+        return posteriorProbabilityOfError(log10OddsOfRealVersusError, getLog10PriorOfSomaticVariant(vc));
+    }
 
-    public double getPriorProbOfArtifactVersusVariant() {
-        return somaticPriorModel.getPriorProbOfArtifactVersusVariant();
+    public double posteriorProbabilityOfNormalArtifact(final double negativeLog10OddsOfNormalArtifact) {
+        return posteriorProbabilityOfError(negativeLog10OddsOfNormalArtifact, somaticClusteringModel.getLog10PriorProbOfVariantVersusArtifact());
+    }
+
+    public double getLog10PriorOfSomaticVariant(final VariantContext vc) {
+        return somaticClusteringModel.getLog10PriorOfSomaticVariant(vc);
+    }
+
+    private static double posteriorProbabilityOfError(final double log10OddsOfRealVersusError, final double log10PriorOfReal) {
+        final double[] unweightedPosteriorOfRealAndError = new double[] {log10OddsOfRealVersusError + log10PriorOfReal,
+                MathUtils.log10OneMinusPow10(log10PriorOfReal)};
+
+        final double[] posteriorOfRealAndError = MathUtils.normalizeFromLog10ToLinearSpace(unweightedPosteriorOfRealAndError);
+
+        return posteriorOfRealAndError[1];
     }
 
     public int[] sumADsOverSamples(final VariantContext vc, final boolean includeTumor, final boolean includeNormal) {
@@ -110,7 +131,7 @@ public class Mutect2FilteringEngine {
         final double[] tumorLog10Odds = GATKProtectedVariantContextUtils.getAttributeAsDoubleArray(vc, GATKVCFConstants.TUMOR_LOD_KEY);
 
         // TODO: this needs to get both technical and non-somatic error probabilities
-        somaticPriorModel.record(tumorADs, tumorLog10Odds, errorProbabilities.getTechnicalArtifactProbability(),
+        somaticClusteringModel.record(tumorADs, tumorLog10Odds, errorProbabilities.getTechnicalArtifactProbability(),
                 errorProbabilities.getNonSomaticProbability(), vc.getType());
         thresholdCalculator.addArtifactProbability(errorProbabilities.getErrorProbability());
     }
@@ -120,7 +141,7 @@ public class Mutect2FilteringEngine {
      */
     public void learnParameters() {
         filters.forEach(Mutect2VariantFilter::learnParametersAndClearAccumulatedData);
-        somaticPriorModel.learnAndClearAccumulatedData();
+        somaticClusteringModel.learnAndClearAccumulatedData();
         thresholdCalculator.relearnThresholdAndClearAcumulatedProbabilities();
 
         filteringOutputStats.clear();
@@ -133,7 +154,7 @@ public class Mutect2FilteringEngine {
         final VariantContextBuilder vcb = new VariantContextBuilder(vc).filters(new HashSet<>());
 
         final ErrorProbabilities errorProbabilities = new ErrorProbabilities(filters, vc, this);
-        filteringOutputStats.recordCall(errorProbabilities, getArtifactProbabilityThreshold() - EPSILON);
+        filteringOutputStats.recordCall(errorProbabilities, getThreshold() - EPSILON);
 
         for (final Map.Entry<Mutect2VariantFilter, Double> entry : errorProbabilities.getProbabilitiesByFilter().entrySet()) {
             final double errorProbability = entry.getValue();
@@ -145,7 +166,7 @@ public class Mutect2FilteringEngine {
             });
 
             // TODO: clarify this logic
-            if (errorProbability > EPSILON && errorProbability > getArtifactProbabilityThreshold() - EPSILON) {
+            if (errorProbability > EPSILON && errorProbability > getThreshold() - EPSILON) {
                 vcb.filter(entry.getKey().filterName());
             }
         }
@@ -158,7 +179,7 @@ public class Mutect2FilteringEngine {
      * @param filteringStatsFile
      */
     public void writeFilteringStats(final File filteringStatsFile) {
-        filteringOutputStats.writeFilteringStats(filteringStatsFile, getArtifactProbabilityThreshold(), somaticPriorModel.clusteringMetadata());
+        filteringOutputStats.writeFilteringStats(filteringStatsFile, getThreshold(), somaticClusteringModel.clusteringMetadata());
     }
 
     private void buildFiltersList(final M2FiltersArgumentCollection MTFAC) {

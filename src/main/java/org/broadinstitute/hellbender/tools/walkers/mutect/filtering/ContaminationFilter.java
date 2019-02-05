@@ -29,12 +29,11 @@ public class ContaminationFilter extends Mutect2VariantFilter {
     public ErrorType errorType() { return ErrorType.NON_SOMATIC; }
 
     @Override
-    public double calculateErrorProbability(final VariantContext vc, final Mutect2FilteringEngine filteringInfo) {
-        final double somaticPriorProb = Math.pow(10, filteringInfo.getLog10PriorOfSomaticVariant(vc));
+    public double calculateErrorProbability(final VariantContext vc, final Mutect2FilteringEngine filteringEngine) {
         final List<ImmutablePair<Integer, Double>> depthsAndPosteriors = new ArrayList<>();
 
         for (final Genotype tumorGenotype : vc.getGenotypes()) {
-            if (filteringInfo.isNormal(tumorGenotype)) {
+            if (filteringEngine.isNormal(tumorGenotype)) {
                 continue;
             }
 
@@ -50,13 +49,14 @@ public class ContaminationFilter extends Mutect2VariantFilter {
                     GATKVCFConstants.POPULATION_AF_VCF_ATTRIBUTE, () -> new double[]{Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY}, Double.POSITIVE_INFINITY);
             final double alleleFrequency = MathUtils.applyToArray(negativeLog10AlleleFrequencies, x -> Math.pow(10,-x))[maxFractionIndex];
 
-            final double somaticLikelihood = 1.0 / (depth + 1);
+            final double log10SomaticLikelihood = Math.log10(1.0 / (depth + 1));
 
             final double singleContaminantLikelihood = 2 * alleleFrequency * (1 - alleleFrequency) * MathUtils.binomialProbability(depth, altCount, contamination /2)
                     + MathUtils.square(alleleFrequency) * MathUtils.binomialProbability(depth, altCount, contamination);
             final double manyContaminantLikelihood = MathUtils.binomialProbability(depth, altCount, contamination * alleleFrequency);
-            final double contaminantLikelihood = Math.max(singleContaminantLikelihood, manyContaminantLikelihood);
-            final double posteriorProbOfContamination = (1 - somaticPriorProb) * contaminantLikelihood / ((1 - somaticPriorProb) * contaminantLikelihood + somaticPriorProb * somaticLikelihood);
+            final double log10ContaminantLikelihood = Math.log10(Math.max(singleContaminantLikelihood, manyContaminantLikelihood));
+            final double log10OddsOfRealVsContamination = log10SomaticLikelihood - log10ContaminantLikelihood;
+            final double posteriorProbOfContamination = filteringEngine.posteriorProbabilityOfError(vc, log10OddsOfRealVsContamination);
 
             depthsAndPosteriors.add(ImmutablePair.of(altCount, posteriorProbOfContamination));
         }

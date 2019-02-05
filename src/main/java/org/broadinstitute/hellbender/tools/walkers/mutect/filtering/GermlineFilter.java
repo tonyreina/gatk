@@ -5,7 +5,6 @@ import htsjdk.variant.variantcontext.VariantContext;
 import org.apache.commons.lang3.mutable.MutableDouble;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.broadinstitute.hellbender.tools.walkers.contamination.MinorAlleleFractionRecord;
-import org.broadinstitute.hellbender.tools.walkers.mutect.GermlineProbabilityCalculator;
 import org.broadinstitute.hellbender.utils.GATKProtectedVariantContextUtils;
 import org.broadinstitute.hellbender.utils.IndexRange;
 import org.broadinstitute.hellbender.utils.MathUtils;
@@ -30,7 +29,7 @@ public class GermlineFilter extends Mutect2VariantFilter {
     public ErrorType errorType() { return ErrorType.NON_SOMATIC; }
 
     @Override
-    public double calculateErrorProbability(final VariantContext vc, final Mutect2FilteringEngine filteringInfo) {
+    public double calculateErrorProbability(final VariantContext vc, final Mutect2FilteringEngine filteringEngine) {
         final double[] tumorLog10OddsIfSomatic = GATKProtectedVariantContextUtils.getAttributeAsDoubleArray(vc, GATKVCFConstants.TUMOR_LOD_KEY);
         final Optional<double[]> normalLods = vc.hasAttribute(GATKVCFConstants.NORMAL_LOD_KEY) ?
                 Optional.of(GATKProtectedVariantContextUtils.getAttributeAsDoubleArray(vc, GATKVCFConstants.NORMAL_LOD_KEY)) : Optional.empty();
@@ -38,7 +37,7 @@ public class GermlineFilter extends Mutect2VariantFilter {
         final double[] populationAlleleFrequencies = MathUtils.applyToArray(negativeLog10AlleleFrequencies, x -> Math.pow(10,-x));
 
         final MutableDouble weightedSumOfMafs = new MutableDouble(0);
-        vc.getGenotypes().stream().filter(filteringInfo::isTumor).forEach(tumorGenotype -> {
+        vc.getGenotypes().stream().filter(filteringEngine::isTumor).forEach(tumorGenotype -> {
             final String sample = tumorGenotype.getSampleName();
             final List<MinorAlleleFractionRecord> segments = tumorSegments.containsKey(sample) ? tumorSegments.get(sample).getOverlaps(vc).stream().collect(Collectors.toList())
                     : Collections.emptyList();
@@ -49,10 +48,10 @@ public class GermlineFilter extends Mutect2VariantFilter {
             weightedSumOfMafs.add(maf * MathUtils.sum(tumorGenotype.getAD()));
         });
 
-        final double[] altAlleleFractions = filteringInfo.weightedAverageOfTumorAFs(vc);
+        final double[] altAlleleFractions = filteringEngine.weightedAverageOfTumorAFs(vc);
 
         // note that this includes the ref
-        final int[] alleleCounts = filteringInfo.sumADsOverSamples(vc, true, false);
+        final int[] alleleCounts = filteringEngine.sumADsOverSamples(vc, true, false);
 
         // weighted average of sample minor allele fractions.  This is the expected allele fraction of a germline het in the aggregated read counts
         final double maf = weightedSumOfMafs.getValue() / MathUtils.sum(alleleCounts);
@@ -78,7 +77,7 @@ public class GermlineFilter extends Mutect2VariantFilter {
         final double[] log10OddsOfGermlineHomAltVsSomatic = MathUtils.applyToArray(altAlleleFractions, x-> x < MIN_ALLELE_FRACTION_FOR_GERMLINE_HOM_ALT ? Double.NEGATIVE_INFINITY : 0);
 
         final double[] log10GermlinePosteriors = GermlineProbabilityCalculator.calculateGermlineProbabilities(
-                populationAlleleFrequencies, log10OddsOfGermlineHetVsSomatic, log10OddsOfGermlineHomAltVsSomatic, normalLods, filteringInfo.getLog10PriorOfSomaticVariant(vc));
+                populationAlleleFrequencies, log10OddsOfGermlineHetVsSomatic, log10OddsOfGermlineHomAltVsSomatic, normalLods, filteringEngine.getLog10PriorOfSomaticVariant(vc));
 
         final int indexOfMaxTumorLod = MathUtils.maxElementIndex(tumorLog10OddsIfSomatic);
         return Math.pow(10.0, log10GermlinePosteriors[indexOfMaxTumorLod]);

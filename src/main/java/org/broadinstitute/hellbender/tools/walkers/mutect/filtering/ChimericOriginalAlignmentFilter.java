@@ -17,7 +17,7 @@ public class ChimericOriginalAlignmentFilter extends HardFilter {
     public ErrorType errorType() { return ErrorType.ARTIFACT; }
 
     @Override
-    public boolean isArtifact(final VariantContext vc, final Mutect2FilteringEngine filteringInfo) {
+    public boolean isArtifact(final VariantContext vc, final Mutect2FilteringEngine filteringEngine) {
         if(!vc.isBiallelic()) {
             return false;
         }

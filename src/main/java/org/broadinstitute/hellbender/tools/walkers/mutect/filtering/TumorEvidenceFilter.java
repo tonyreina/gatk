@@ -14,17 +14,12 @@ public class TumorEvidenceFilter extends Mutect2VariantFilter {
     public ErrorType errorType() { return ErrorType.SEQUENCING; }
 
     @Override
-    public double calculateErrorProbability(final VariantContext vc, final Mutect2FilteringEngine filteringInfo) {
+    public double calculateErrorProbability(final VariantContext vc, final Mutect2FilteringEngine filteringEngine) {
         final double[] tumorLods = GATKProtectedVariantContextUtils.getAttributeAsDoubleArray(vc, GATKVCFConstants.TUMOR_LOD_KEY);
-        final int[] ADs = filteringInfo.sumADsOverSamples(vc, true, false);
+        final int[] ADs = filteringEngine.sumADsOverSamples(vc, true, false);
         final int maxIndex = MathUtils.maxElementIndex(tumorLods);
-        final double tumorLog10Odds = tumorLods[maxIndex];
-        final int refCount = ADs[0];
-        final int altCount = ADs[maxIndex + 1];
 
-        //TODO: move to filteringInfo?
-        final double tumorLog10OddsCorrectedForClustering = filteringInfo.clusteringCorrectedLog10Odds(tumorLog10Odds, altCount, refCount);
-        return posteriorProbabilityOfError(tumorLog10OddsCorrectedForClustering, filteringInfo.getLog10PriorOfSomaticVariant(vc));
+        return filteringEngine.probabilityOfSequencingError(vc, tumorLods[maxIndex], ADs[maxIndex + 1], ADs[0]);
     }
 
     @Override

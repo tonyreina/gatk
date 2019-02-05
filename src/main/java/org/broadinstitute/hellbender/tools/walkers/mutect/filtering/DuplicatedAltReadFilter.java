@@ -20,7 +20,7 @@ public class DuplicatedAltReadFilter extends HardFilter {
     public ErrorType errorType() { return ErrorType.ARTIFACT; }
 
     @Override
-    public boolean isArtifact(final VariantContext vc, final Mutect2FilteringEngine filteringInfo) {
+    public boolean isArtifact(final VariantContext vc, final Mutect2FilteringEngine filteringEngine) {
         return vc.getAttributeAsInt(UniqueAltReadCount.KEY, 1) <= uniqueAltReadCount;
     }
 

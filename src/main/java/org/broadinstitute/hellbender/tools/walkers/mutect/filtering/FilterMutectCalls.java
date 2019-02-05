@@ -91,7 +91,7 @@ public final class FilterMutectCalls extends MultiplePassVariantWalker {
 
     private VariantContextWriter vcfWriter;
 
-    private Mutect2FilteringEngine filteringInfo;
+    private Mutect2FilteringEngine filteringEngine;
 
     private static final int NUMBER_OF_LEARNING_PASSES = 2;
 
@@ -116,7 +116,7 @@ public final class FilterMutectCalls extends MultiplePassVariantWalker {
 
 
         final File mutect2StatsTable = new File(statsTable == null ? drivingVariantFile + Mutect2.DEFAULT_STATS_EXTENSION : statsTable);
-        filteringInfo = new Mutect2FilteringEngine(MTFAC, vcfHeader, mutect2StatsTable);
+        filteringEngine = new Mutect2FilteringEngine(MTFAC, vcfHeader, mutect2StatsTable);
         if (!mutect2StatsTable.exists()) {
             logger.warn("Mutect stats table " + mutect2StatsTable + " not found.  Filtering will proceed without this information.");
         }
@@ -129,9 +129,9 @@ public final class FilterMutectCalls extends MultiplePassVariantWalker {
                                 final FeatureContext featureContext,
                                 final int n) {
         if (n < NUMBER_OF_LEARNING_PASSES) {
-            filteringInfo.accumulateData(variant);
+            filteringEngine.accumulateData(variant);
         } else if (n == NUMBER_OF_LEARNING_PASSES) {
-            vcfWriter.add(filteringInfo.applyFiltersAndAccumulateOutputStats(variant));
+            vcfWriter.add(filteringEngine.applyFiltersAndAccumulateOutputStats(variant));
         } else {
             throw new GATKException.ShouldNeverReachHereException("This walker should never reach (zero-indexed) pass " + n);
         }
@@ -140,10 +140,10 @@ public final class FilterMutectCalls extends MultiplePassVariantWalker {
     @Override
     protected void afterNthPass(final int n) {
         if (n < NUMBER_OF_LEARNING_PASSES) {
-            filteringInfo.learnParameters();
+            filteringEngine.learnParameters();
         } else if (n == NUMBER_OF_LEARNING_PASSES) {
             final File filteringStatsFile = new File(filteringStatsOutput != null ? filteringStatsOutput : outputVcf + FILTERING_STATS_EXTENSION);
-            filteringInfo.writeFilteringStats(filteringStatsFile);
+            filteringEngine.writeFilteringStats(filteringStatsFile);
         } else {
             throw new GATKException.ShouldNeverReachHereException("This walker should never reach (zero-indexed) pass " + n);
         }

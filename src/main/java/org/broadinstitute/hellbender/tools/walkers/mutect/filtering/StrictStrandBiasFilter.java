@@ -20,7 +20,7 @@ public class StrictStrandBiasFilter extends HardFilter {
     public ErrorType errorType() { return ErrorType.ARTIFACT; }
 
     @Override
-    public boolean isArtifact(final VariantContext vc, final Mutect2FilteringEngine filteringInfo) {
+    public boolean isArtifact(final VariantContext vc, final Mutect2FilteringEngine filteringEngine) {
         if (minReadsOnEachStrand == 0) {
             return false;
         }
@@ -28,7 +28,7 @@ public class StrictStrandBiasFilter extends HardFilter {
         final MutableInt altForwardCount = new MutableInt(0);
         final MutableInt altReverseCount = new MutableInt(0);
 
-        vc.getGenotypes().stream().filter(filteringInfo::isTumor)
+        vc.getGenotypes().stream().filter(filteringEngine::isTumor)
                 .filter(g -> g.hasExtendedAttribute(GATKVCFConstants.STRAND_BIAS_BY_SAMPLE_KEY))
                 .forEach(g -> {
                     final int[] strandBiasCounts = GATKProtectedVariantContextUtils.getAttributeAsIntArray(g, GATKVCFConstants.STRAND_BIAS_BY_SAMPLE_KEY, () -> null, 0);

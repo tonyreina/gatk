@@ -27,9 +27,9 @@ public class FilteredHaplotypeFilter extends Mutect2VariantFilter {
     public ErrorType errorType() { return ErrorType.ARTIFACT; }
 
     @Override
-    public double calculateErrorProbability(final VariantContext vc, final Mutect2FilteringEngine filteringInfo) {
+    public double calculateErrorProbability(final VariantContext vc, final Mutect2FilteringEngine filteringEngine) {
         // use phasing of tumor genotype with greatest allele fraction
-        final Genotype tumorGenotype = vc.getGenotypes().stream().filter(filteringInfo::isTumor)
+        final Genotype tumorGenotype = vc.getGenotypes().stream().filter(filteringEngine::isTumor)
                 .max(Comparator.comparingDouble(g -> MathUtils.arrayMax(GATKProtectedVariantContextUtils.getAttributeAsDoubleArray(g, VCFConstants.ALLELE_FREQUENCY_KEY,
                         () -> new double[] {0.0}, 0.0)))).get();
 
@@ -52,7 +52,7 @@ public class FilteredHaplotypeFilter extends Mutect2VariantFilter {
     }
 
     @Override
-    protected void accumulateDataForLearning(final VariantContext vc, final ErrorProbabilities errorProbabilities, final Mutect2FilteringEngine filteringInfo) {
+    protected void accumulateDataForLearning(final VariantContext vc, final ErrorProbabilities errorProbabilities, final Mutect2FilteringEngine filteringEngine) {
         // we record the maximum non-sequencing artifact that is not this filter itself
         final double artifactProbability = errorProbabilities.getProbabilitiesByFilter().entrySet().stream()
                 .filter(e -> e.getKey().errorType() != ErrorType.SEQUENCING)
@@ -61,7 +61,7 @@ public class FilteredHaplotypeFilter extends Mutect2VariantFilter {
                 .max().orElse(0.0);
 
         for (final Genotype tumorGenotype : vc.getGenotypes()) {
-            if (!filteringInfo.isTumor(tumorGenotype)) {
+            if (!filteringEngine.isTumor(tumorGenotype)) {
                 continue;
             }
 

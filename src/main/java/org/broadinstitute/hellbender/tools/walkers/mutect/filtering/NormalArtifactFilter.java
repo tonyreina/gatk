@@ -19,15 +19,15 @@ public class NormalArtifactFilter extends Mutect2VariantFilter {
     public ErrorType errorType() { return ErrorType.ARTIFACT; }
 
     @Override
-    public double calculateErrorProbability(final VariantContext vc, final Mutect2FilteringEngine filteringInfo) {
+    public double calculateErrorProbability(final VariantContext vc, final Mutect2FilteringEngine filteringEngine) {
         final double[] tumorLods = GATKProtectedVariantContextUtils.getAttributeAsDoubleArray(vc, GATKVCFConstants.TUMOR_LOD_KEY);
         final int indexOfMaxTumorLod = MathUtils.maxElementIndex(tumorLods);
 
-        final int[] tumorAlleleDepths = filteringInfo.sumADsOverSamples(vc, true, false);
+        final int[] tumorAlleleDepths = filteringEngine.sumADsOverSamples(vc, true, false);
         final int tumorDepth = (int) MathUtils.sum(tumorAlleleDepths);
         final int tumorAltDepth = tumorAlleleDepths[indexOfMaxTumorLod + 1];
 
-        final int[] normalAlleleDepths = filteringInfo.sumADsOverSamples(vc, false, true);
+        final int[] normalAlleleDepths = filteringEngine.sumADsOverSamples(vc, false, true);
         final int normalDepth = (int) MathUtils.sum(normalAlleleDepths);
         final int normalAltDepth = normalAlleleDepths[indexOfMaxTumorLod + 1];
 
@@ -40,8 +40,7 @@ public class NormalArtifactFilter extends Mutect2VariantFilter {
         }
 
         final double[] normalArtifactLods = GATKProtectedVariantContextUtils.getAttributeAsDoubleArray(vc, GATKVCFConstants.NORMAL_ARTIFACT_LOD_ATTRIBUTE);
-        final double log10PriorOfReal = Math.log10(1 - filteringInfo.getPriorProbOfArtifactVersusVariant());
-        final double normalArtifactProbability = posteriorProbabilityOfError(normalArtifactLods[indexOfMaxTumorLod], log10PriorOfReal);
+        final double normalArtifactProbability = filteringEngine.posteriorProbabilityOfNormalArtifact(normalArtifactLods[indexOfMaxTumorLod]);
 
         // the normal artifact log odds misses artifacts whose support in the normal consists entirely of low base quality reads
         // Since a lot of low-BQ reads is itself evidence of an artifact, we filter these by hand via an estimated LOD

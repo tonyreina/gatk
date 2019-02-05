@@ -10,6 +10,7 @@ import java.util.List;
 
 public class MultiallelicFilter extends HardFilter {
     private final int numAltAllelesThreshold;
+    private static final double MULTIALLELIC_LOD_THRESHOLD = 5.0;
 
     public MultiallelicFilter(final int numAltAllelesThreshold) {
         this.numAltAllelesThreshold = numAltAllelesThreshold;
@@ -19,12 +20,11 @@ public class MultiallelicFilter extends HardFilter {
     public ErrorType errorType() { return ErrorType.ARTIFACT; }
 
     @Override
-    public boolean isArtifact(final VariantContext vc, final Mutect2FilteringEngine filteringInfo) {
+    public boolean isArtifact(final VariantContext vc, final Mutect2FilteringEngine filteringEngine) {
         final double[] tumorLods = GATKProtectedVariantContextUtils.getAttributeAsDoubleArray(vc, GATKVCFConstants.TUMOR_LOD_KEY);
 
         final long numPassingAltAlleles = Arrays.stream(tumorLods)
-                .map(lod -> posteriorProbabilityOfError(lod, filteringInfo.getLog10PriorOfSomaticVariant(vc)))
-                .filter(prob -> prob < filteringInfo.getArtifactProbabilityThreshold())
+                .filter(lod -> lod > MULTIALLELIC_LOD_THRESHOLD)
                 .count();
 
         return numPassingAltAlleles > numAltAllelesThreshold;

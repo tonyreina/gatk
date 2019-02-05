@@ -209,7 +209,7 @@ public class GATKVCFHeaderLines {
         addInfoLine(new VCFInfoHeaderLine(POLYMERASE_SLIPPAGE_QUAL_VCF_ATTRIBUTE, VCFHeaderLineCount.A, VCFHeaderLineType.Integer, "Phred-scaled qualities that alt alleles in STRs are not polymerase slippage errors"));
         addInfoLine(new VCFInfoHeaderLine(STRAND_QUAL_VCF_ATTRIBUTE, 1, VCFHeaderLineType.Integer, "Phred-scaled quality of strand bias artifact"));
         addInfoLine(new VCFInfoHeaderLine(CONTAMINATION_QUAL_ATTRIBUTE, 1, VCFHeaderLineType.Float, "Phred-scaled qualities that alt allele are not due to contamination"));
-        addInfoLine(new VCFInfoHeaderLine(NORMAL_ARTIFACT_LOD_ATTRIBUTE, VCFHeaderLineCount.A, VCFHeaderLineType.Float, "log odds of artifact in normal with same allele fraction as tumor"));
+        addInfoLine(new VCFInfoHeaderLine(NORMAL_ARTIFACT_LOD_ATTRIBUTE, VCFHeaderLineCount.A, VCFHeaderLineType.Float, "Negative log odds of artifact in normal with same allele fraction as tumor"));
         addInfoLine(new VCFInfoHeaderLine(ORIGINAL_CONTIG_MISMATCH_KEY, 1, VCFHeaderLineType.Integer, "Number of alt reads whose original alignment doesn't match the current contig."));
         addInfoLine(new VCFInfoHeaderLine(N_COUNT_KEY, 1, VCFHeaderLineType.Integer, "Count of N bases in the pileup"));
         addInfoLine(new VCFInfoHeaderLine(UNIQUE_ALT_READ_SET_COUNT_KEY, 1, VCFHeaderLineType.Integer, "Number of ALT reads with unique start and mate end positions at a variant site"));
