@@ -28,7 +28,7 @@ public class SomaticClusteringModel {
     private final OptionalDouble callableSites;
 
     private static final double INITIAL_HIGH_AF_WEIGHT = 0.01;
-    private static final double INITIAL_BACKGROUND_WEIGHT = 0.1;
+    private static final double INITIAL_BACKGROUND_WEIGHT = 0.01;
 
     private double log10HighAFWeight = Math.log10(INITIAL_HIGH_AF_WEIGHT);
     private double log10BackgroundWeight = Math.log10(INITIAL_BACKGROUND_WEIGHT);
