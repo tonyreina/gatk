@@ -150,6 +150,9 @@ public class SomaticClusteringModel {
                 newIndex++;
             }
         }
+        // at this point newIndex equals the size of new clusters, and possibly some indices past this must be deleted
+        clusters.subList(newIndex,clusters.size()).clear();
+        clusterCounts.subList(newIndex,clusterCounts.size()).clear();
 
         clusterAssignments = clusterAssignments.stream()
                 .map(a -> a.isPresent() ? OptionalInt.of(oldToNewClusterIndices.get(a.getAsInt())) : a)
