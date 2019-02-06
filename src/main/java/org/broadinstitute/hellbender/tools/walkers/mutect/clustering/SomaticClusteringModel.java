@@ -209,6 +209,7 @@ public class SomaticClusteringModel {
         if (clusterIndex == clusters.size()) {
             final double newClusterAlleleFraction = new BetaDistribution(rng.getRandomGenerator(), datum.getAltCount() + 1, datum.getTotalCount() - datum.getAltCount() + 1).sample();
             clusters.add(new BinomialCluster(newClusterAlleleFraction));
+            clusterCounts.add(new MutableInt(0));
         }
 
         if (OFFSET <= clusterIndex) {

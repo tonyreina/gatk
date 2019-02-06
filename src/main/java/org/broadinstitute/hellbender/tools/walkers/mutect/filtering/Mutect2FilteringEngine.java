@@ -21,10 +21,6 @@ import java.io.File;
 import java.util.*;
 import java.util.stream.Collectors;
 
-/**
- * Simple class to hold all information needed by Mutect2 filters, including: the M2FilteringArgumentCollection,
- * the set of normal samples, the samples' contamination, and the tumor sample CNV segments
- */
 public class Mutect2FilteringEngine {
     public static final double EPSILON = 1.0e-10;
 
