@@ -174,19 +174,18 @@ public class Mutect2IntegrationTest extends CommandLineProgramTest {
     public void testDreamFiltering() throws Exception {
         Utils.resetRandomGenerator();
         final File unfilteredVcf = new File("/Users/davidben/Desktop/dream-filtering/dream4/calls.vcf");
-
-                //DREAM_4_FALSE_POSITIVES;
+        final File truthVcf = new File("/Users/davidben/Desktop/dream-filtering/dream4/truth.vcf");
+        final File mask = new File("/Users/davidben/Desktop/dream-filtering/dream4/mask.list");
         final File filteredVcf = createTempFile("filtered", ".vcf");
 
         // run FilterMutectCalls
         new Main().instanceMain(makeCommandLineArgs(Arrays.asList("-V", unfilteredVcf.getAbsolutePath(), "-O", filteredVcf.getAbsolutePath()), FilterMutectCalls.class.getSimpleName()));
 
-        final long numTotal = VariantContextTestUtils.streamVcf(filteredVcf).count();
 
-        final long numFalsePositives = VariantContextTestUtils.streamVcf(filteredVcf)
-                .filter(vc -> vc.getFilters().isEmpty()).count();
+        final File concordanceSummary = createTempFile("concordance", ".txt");
+        new Main().instanceMain(makeCommandLineArgs(Arrays.asList("-truth", truthVcf.getAbsolutePath(), "-eval", filteredVcf.getAbsolutePath(), "-XL", mask.getAbsolutePath(), "-summary", concordanceSummary.getAbsolutePath()), "Concordance"));
 
-        Assert.assertTrue(numFalsePositives < 0.1 * numTotal);
+        int g = 90;
     }
 
     private String getSampleName(File bam) throws IOException {
