@@ -32,7 +32,7 @@ public class SomaticClusteringModel {
 
     private double log10HighAFWeight = Math.log10(INITIAL_HIGH_AF_WEIGHT);
     private double log10BackgroundWeight = Math.log10(INITIAL_BACKGROUND_WEIGHT);
-    private double log10SparseClustersWeight = MathUtils.log10OneMinusX(MathUtils.log10SumLog10(log10HighAFWeight, log10BackgroundWeight));
+    private double log10SparseClustersWeight = MathUtils.log10OneMinusPow10(MathUtils.log10SumLog10(log10HighAFWeight, log10BackgroundWeight));
 
     private static final double CONCENTRATION = 0.5;
     private static final int NUM_ITERATIONS = 5;
