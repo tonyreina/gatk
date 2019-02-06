@@ -159,7 +159,8 @@ public class SomaticClusteringModel {
         final double log10VariantPrior = datum.getType() == VariantContext.Type.SNP ? (MathUtils.LOG10_ONE_THIRD + log10SNVPrior) : log10IndelPrior;
 
         final double[] log10ClusterPosteriors = new IndexRange(0, clusters.size() + 1).mapToDouble(c -> {
-            final double log10Likelihood = clusters.get(c).log10Likelihood(datum);
+            final double log10Likelihood = c < clusters.size() ? clusters.get(c).log10Likelihood(datum) :
+                    NEW_CLUSTER.log10Likelihood(datum);
             if (c == SEQUENCING_ERROR_INDEX) {
                 return log10NoVariantPrior + log10Likelihood;
             } else if (c == HIGH_AF_INDEX) {
@@ -171,7 +172,7 @@ public class SomaticClusteringModel {
                         + log10Likelihood;
             } else {    // new sparse cluster
                 return log10VariantPrior + log10SparseClustersWeight + log10CRPWeight(c)
-                        + NEW_CLUSTER.log10Likelihood(datum);
+                        + log10Likelihood;
             }
         });
 
