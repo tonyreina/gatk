@@ -151,7 +151,7 @@ public class SomaticClusteringModel {
         }
 
         clusterAssignments = clusterAssignments.stream()
-                .map(a -> a.isPresent() ? OptionalInt.of(oldToNewClusterIndices.get(a)) : a)
+                .map(a -> a.isPresent() ? OptionalInt.of(oldToNewClusterIndices.get(a.getAsInt())) : a)
                 .collect(Collectors.toList());
     }
 
