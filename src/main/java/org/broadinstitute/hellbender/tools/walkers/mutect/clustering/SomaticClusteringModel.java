@@ -96,7 +96,7 @@ public class SomaticClusteringModel {
     public void learnAndClearAccumulatedData() {
         if (firstPass) {
             clusterAssignments.addAll(Collections.nCopies(data.size(), OptionalInt.empty()));
-            clusterCounts.addAll(Collections.nCopies(clusters.size(), new MutableInt(0)));
+            IntStream.range(0, clusters.size()).forEach(n -> clusterCounts.add(new MutableInt(0)));
         }
 
         for (int iteration = 0; iteration < NUM_ITERATIONS; iteration++) {
