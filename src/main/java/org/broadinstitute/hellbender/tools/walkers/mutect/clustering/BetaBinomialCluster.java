@@ -61,4 +61,9 @@ public class BetaBinomialCluster implements AlleleFractionCluster {
     private static double g(final double... omega) {
         return SomaticLikelihoodsEngine.log10DirichletNormalization(omega);
     }
+
+    @Override
+    public String toString() {
+        return String.format("alpha = %.2f, beta = %.2f", betaDistributionShape.getAlpha(), betaDistributionShape.getBeta());
+    }
 }

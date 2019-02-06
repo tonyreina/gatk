@@ -52,7 +52,7 @@ public class SomaticClusteringModel {
     final List<Datum> data = new ArrayList<>();
     List<AlleleFractionCluster> clusters;
 
-    final List<OptionalInt> clusterAssignments = new ArrayList<>();
+    List<OptionalInt> clusterAssignments = new ArrayList<>();
     final List<MutableInt> clusterCounts = new ArrayList<>();
     final MutableInt totalSparseClusterCount = new MutableInt(0);
 
@@ -116,8 +116,7 @@ public class SomaticClusteringModel {
 
             }
 
-            // TODO: prune clusters and adjust indices
-            clusters = clusters.stream().filter(cluster -> !cluster.isEmpty()).collect(Collectors.toSet());
+            pruneEmptyClusters();
 
             final List<List<Datum>> dataByCluster = clusters.stream().map(c -> new ArrayList<Datum>()).collect(Collectors.toList());
             for (final MutableInt datumIndex = new MutableInt(0); datumIndex.getValue() < clusterAssignments.size(); datumIndex.increment()) {
@@ -133,6 +132,27 @@ public class SomaticClusteringModel {
 
         firstPass = false;
         data.clear();
+    }
+
+    private void pruneEmptyClusters() {
+        final Map<Integer, Integer> oldToNewClusterIndices = new TreeMap<>();
+
+        int newIndex = OFFSET;
+        for (int oldIndex = OFFSET; oldIndex < clusters.size(); oldIndex++) {
+            if (clusterCounts.get(oldIndex).getValue() > 0) {
+                oldToNewClusterIndices.put(oldIndex, newIndex);
+
+                if (newIndex != oldIndex) {
+                    clusters.set(newIndex, clusters.get(oldIndex));
+                    clusterCounts.set(newIndex, clusterCounts.get(oldIndex));
+                }
+                newIndex++;
+            }
+        }
+
+        clusterAssignments = clusterAssignments.stream()
+                .map(a -> a.isPresent() ? OptionalInt.of(oldToNewClusterIndices.get(a)) : a)
+                .collect(Collectors.toList());
     }
 
     private double[] clusterProbabilities(final Datum datum) {
@@ -225,19 +245,16 @@ public class SomaticClusteringModel {
         final List<Pair<String, String>> result = new ArrayList<>();
         result.add(ImmutablePair.of("log10 SNV prior", Double.toString(log10SNVPrior)));
         result.add(ImmutablePair.of("log10 Indel prior", Double.toString(log10IndelPrior)));
+        result.add(ImmutablePair.of("High-AF beta-binomial cluster",
+                String.format("weight = %.4f, %s", Math.pow(10, log10HighAFWeight), clusters.get(HIGH_AF_INDEX).toString())));
+        result.add(ImmutablePair.of("Background beta-binomial cluster",
+                String.format("weight = %.4f, %s", Math.pow(10, log10BackgroundWeight), clusters.get(BACKGROUND_INDEX).toString())));
 
         final MutableInt clusterIndex = new MutableInt(1);
-        //TODO: clusters need their own reporting. . .
-        //alleleFractionClusters.stream().sorted(Comparator.comparingDouble(pair-> -pair.getLeft())).forEach(log10WeightAndShape -> {
-            final double weight = Math.pow(10, log10WeightAndShape.getLeft());
-            final double alpha = log10WeightAndShape.getRight().getAlpha();
-            final double beta = log10WeightAndShape.getRight().getBeta();
-            result.add(ImmutablePair.of("cluster " + clusterIndex.getValue().toString(),
-                    String.format("weight = %.3f, alpha = %.2f, beta = %.2f", weight, alpha, beta)));
-            clusterIndex.increment();
-        });
-
+        IntStream.range(OFFSET, clusters.size()).boxed()
+                .sorted(Comparator.comparingDouble(c -> -log10CRPWeight(c)))
+                .forEach(c -> result.add(ImmutablePair.of("Binomial cluster " + clusterIndex.toString(),
+                        String.format("weight = %.4f, %s", Math.pow(10, log10CRPWeight(c)), clusters.get(c).toString()))));
         return result;
     }
-
 }

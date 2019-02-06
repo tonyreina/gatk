@@ -34,4 +34,9 @@ public class BinomialCluster implements AlleleFractionCluster {
         final double beta = alphaPlusBeta - alpha;
         return new BetaDistributionShape(alpha, beta);
     }
+
+    @Override
+    public String toString() {
+        return String.format("mean = %.3f", betaDistributionShape.getAlpha() / (betaDistributionShape.getAlpha() + betaDistributionShape.getBeta()));
+    }
 }

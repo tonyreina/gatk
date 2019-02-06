@@ -6,4 +6,7 @@ public interface AlleleFractionCluster {
     double log10Likelihood(final Datum datum);
 
     void learn(final List<Datum> data);
+
+    @Override
+    String toString();
 }

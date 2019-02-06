@@ -14,6 +14,8 @@ public class SequencingError implements AlleleFractionCluster {
     @Override
     public void learn(final List<Datum> data) { }
 
-
-
+    @Override
+    public String toString() {
+        return "sequencing error";
+    }
 }
