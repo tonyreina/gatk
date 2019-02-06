@@ -24,7 +24,7 @@ public class BinomialCluster implements AlleleFractionCluster {
     public void learn(final List<Datum> data) {
         final double altCount = data.stream().mapToInt(Datum::getAltCount).sum() + 0.0001;
         final double totalCount = data.stream().mapToInt(Datum::getTotalCount).sum() + 0.0001;
-        betaDistributionShape = getFuzzyBinomial((double) altCount / totalCount);
+        betaDistributionShape = getFuzzyBinomial( altCount / totalCount);
 
     }
 
