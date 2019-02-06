@@ -28,7 +28,8 @@ public class BinomialCluster implements AlleleFractionCluster {
 
     }
 
-    private static BetaDistributionShape getFuzzyBinomial(final double mean) {
+    private static BetaDistributionShape getFuzzyBinomial(final double unboundedMean) {
+        final double mean = Math.min(unboundedMean, 1 - STD_DEV_OVER_MEAN);
         final double alphaPlusBeta = ((1 - mean) / (mean * MathUtils.square(STD_DEV_OVER_MEAN))) - 1;
         final double alpha = mean * alphaPlusBeta;
         final double beta = alphaPlusBeta - alpha;

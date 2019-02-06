@@ -173,7 +173,7 @@ public class Mutect2IntegrationTest extends CommandLineProgramTest {
     @Test
     public void testDreamFiltering() throws Exception {
         Utils.resetRandomGenerator();
-        final File unfilteredVcf = new File("/Users/davidben/Desktop/dream-filtering/dream4/calls.vcf");
+        final File unfilteredVcf = new File("/Users/davidben/Desktop/dream-filtering/dream1/calls.vcf");
         final File truthVcf = new File("/Users/davidben/Desktop/dream-filtering/dream4/truth.vcf");
         final File mask = new File("/Users/davidben/Desktop/dream-filtering/dream4/mask.list");
         final File filteredVcf = createTempFile("filtered", ".vcf");
