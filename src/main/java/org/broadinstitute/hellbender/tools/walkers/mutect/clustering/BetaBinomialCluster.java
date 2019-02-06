@@ -44,8 +44,8 @@ public class BetaBinomialCluster implements AlleleFractionCluster {
                 final double alphaGradient = Gamma.digamma(alpha + alt) - digammaOfTotalPlusAlphaPlusBeta - Gamma.digamma(alpha) + digammaOfAlphaPlusBeta;
                 final double betaGradient = Gamma.digamma(beta + ref) - digammaOfTotalPlusAlphaPlusBeta - Gamma.digamma(beta) + digammaOfAlphaPlusBeta;
 
-                alpha = alpha + RATE * alphaGradient;
-                beta = beta + RATE * betaGradient;
+                alpha = Math.max(alpha + RATE * alphaGradient, 0.5);
+                beta = Math.max(beta + RATE * betaGradient, 0.5);
             }
         }
 
