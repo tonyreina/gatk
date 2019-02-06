@@ -135,7 +135,8 @@ public class SomaticClusteringModel {
     }
 
     private void pruneEmptyClusters() {
-        final Map<Integer, Integer> oldToNewClusterIndices = new TreeMap<>();
+        final Map<Integer, Integer> oldToNewClusterIndices = IntStream.range(0, OFFSET).boxed()
+                .collect(Collectors.toMap(n ->n, n-> n));
 
         int newIndex = OFFSET;
         for (int oldIndex = OFFSET; oldIndex < clusters.size(); oldIndex++) {
