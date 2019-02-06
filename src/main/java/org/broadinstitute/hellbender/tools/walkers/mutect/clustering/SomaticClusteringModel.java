@@ -231,7 +231,8 @@ public class SomaticClusteringModel {
 
         log10HighAFWeight = Math.log10((double) clusterCounts.get(HIGH_AF_INDEX).getValue() / totalVariants);
         log10BackgroundWeight = Math.log10((double) clusterCounts.get(BACKGROUND_INDEX).getValue() / totalVariants);
-        log10SparseClustersWeight = MathUtils.log10OneMinusX(MathUtils.log10SumLog10(log10HighAFWeight, log10BackgroundWeight));
+        log10SparseClustersWeight = MathUtils.log10OneMinusPow10(MathUtils.log10SumLog10(log10HighAFWeight, log10BackgroundWeight));
+
 
         final double technicalArtifactCount = data.stream().mapToDouble(Datum::getArtifactProb).sum();
 
