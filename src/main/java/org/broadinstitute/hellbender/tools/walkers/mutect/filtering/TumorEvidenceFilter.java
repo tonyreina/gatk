@@ -1,6 +1,7 @@
 package org.broadinstitute.hellbender.tools.walkers.mutect.filtering;
 
 import htsjdk.variant.variantcontext.VariantContext;
+import org.broadinstitute.hellbender.tools.walkers.mutect.clustering.Datum;
 import org.broadinstitute.hellbender.utils.GATKProtectedVariantContextUtils;
 import org.broadinstitute.hellbender.utils.MathUtils;
 import org.broadinstitute.hellbender.utils.variant.GATKVCFConstants;
@@ -18,8 +19,11 @@ public class TumorEvidenceFilter extends Mutect2VariantFilter {
         final double[] tumorLods = GATKProtectedVariantContextUtils.getAttributeAsDoubleArray(vc, GATKVCFConstants.TUMOR_LOD_KEY);
         final int[] ADs = filteringEngine.sumADsOverSamples(vc, true, false);
         final int maxIndex = MathUtils.maxElementIndex(tumorLods);
+        final int altCount = ADs[maxIndex + 1];
+        final int totalCount = (int) MathUtils.sum(ADs);
 
-        return filteringEngine.probabilityOfSequencingError(vc, tumorLods[maxIndex], ADs[maxIndex + 1], ADs[0]);
+        return filteringEngine.getSomaticClusteringModel()
+                .probabilityOfSequencingError(new Datum(tumorLods[maxIndex], 0, 0, altCount, totalCount, vc.getType()));
     }
 
     @Override

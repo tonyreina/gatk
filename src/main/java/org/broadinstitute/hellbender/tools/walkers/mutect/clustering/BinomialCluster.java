@@ -9,20 +9,24 @@ public class BinomialCluster implements AlleleFractionCluster {
 
     private static final double STD_DEV_OVER_MEAN = 0.01;
 
+    private BetaDistributionShape betaDistributionShape;
 
+    public BinomialCluster(final double mean) {
+        betaDistributionShape = getFuzzyBinomial(mean);
+    }
 
+    @Override
+    public double log10Likelihood(final Datum datum) {
+        return BetaBinomialCluster.log10Likelihood(datum, betaDistributionShape);
+    }
 
     @Override
     public void learn(final List<Datum> data) {
         final long altCount = data.stream().mapToInt(Datum::getAltCount).sum();
         final long totalCount = data.stream().mapToInt(Datum::getTotalCount).sum();
-        
-        betaDistributionShape = new BetaDistributionShape(alpha, beta);
+        betaDistributionShape = getFuzzyBinomial((double) altCount / totalCount);
 
     }
-
-
-
 
     private static BetaDistributionShape getFuzzyBinomial(final double mean) {
         final double alphaPlusBeta = ((1 - mean) / (mean * MathUtils.square(STD_DEV_OVER_MEAN))) - 1;

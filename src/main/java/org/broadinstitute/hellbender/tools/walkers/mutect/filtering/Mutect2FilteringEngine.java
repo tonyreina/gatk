@@ -63,19 +63,7 @@ public class Mutect2FilteringEngine {
      */
     public double getThreshold() { return thresholdCalculator.getThreshold(); }
 
-    /**
-     * posterior probability of sequencing error accounting for the allele fraction clustering learned by the
-     * {@link SomaticClusteringModel}
-     * @param vc
-     * @param tumorLog10Odds original log10 odds emitted by Mutect2 using a flat prior on allele fraction
-     * @param altCount number of alt reads
-     * @param refCount number of ref reads
-     * @return
-     */
-    public double probabilityOfSequencingError(final VariantContext vc, final double tumorLog10Odds, final int altCount, final int refCount) {
-        final double correctedLog10Odds = somaticClusteringModel.clusteringCorrectedLog10Odds(tumorLog10Odds, altCount, refCount);
-        return posteriorProbabilityOfError(correctedLog10Odds, getLog10PriorOfSomaticVariant(vc));
-    }
+    public SomaticClusteringModel getSomaticClusteringModel() { return somaticClusteringModel; }
 
     public double posteriorProbabilityOfError(final VariantContext vc, final double log10OddsOfRealVersusError) {
         return posteriorProbabilityOfError(log10OddsOfRealVersusError, getLog10PriorOfSomaticVariant(vc));

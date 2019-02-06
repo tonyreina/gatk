@@ -20,6 +20,10 @@ public class BetaBinomialCluster implements AlleleFractionCluster {
 
     @Override
     public double log10Likelihood(final Datum datum) {
+        return log10Likelihood(datum, betaDistributionShape);
+    }
+
+    public static double log10Likelihood(final Datum datum, final BetaDistributionShape betaDistributionShape) {
         final int altCount = datum.getAltCount();
         final int refCount = datum.getTotalCount() - altCount;
         return datum.getTumorLog10Odds() + log10OddsCorrection(BetaDistributionShape.FLAT_BETA, betaDistributionShape, altCount, refCount);
