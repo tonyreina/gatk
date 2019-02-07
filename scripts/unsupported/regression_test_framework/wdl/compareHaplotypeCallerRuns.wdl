@@ -66,25 +66,30 @@ workflow ToolComparisonWdl {
     scatter (i in range(length(input_bams))) {
 
         # Set up variables for this loop:
-        File inputBaseName = basename(input_bams[i], ".bam")
-        File indexFile = inputBaseName + ".bai"
+        File input_base_name = basename(input_bams[i], ".bam")
+        File input_bam_index = input_base_name + ".bai"
 
-        String outputName = if gvcf_mode then inputBaseName + ".HC.g.vcf" else inputBaseName + ".HC.vcf"
+        String outputName = if gvcf_mode then input_base_name + ".HC.g.vcf" else input_base_name + ".HC.vcf"
 
         String truthBaseName = outputName
         File truthVcf = truth_bucket_location + truthBaseName
         File truthIndex = truth_bucket_location + truthBaseName + ".idx"
 
         # This is kind of a total hack
-        Boolean isUsingIntervals = sub(inputBaseName, "Pond.*", "") == "Nex"
+        Boolean isUsingIntervals = sub(input_base_name, "Pond.*", "") == "Nex"
         File? garbageFile
         File? interval_list_final = if !isUsingIntervals then interval_list else garbageFile
+
+        # ================================================================================================
+        # Run the tool itself:
+        # -------------------------------------------------
 
         # Only use intervals if we're running on an Exome:
         call tool_wdl.HaplotypeCallerTask {
             input:
-                input_bam                 = input_bucket_location + input_bams[i],
-                input_bam_index           = input_bucket_location + indexFile,
+                input_bam                = input_bucket_location + input_bams[i],
+                input_bam_index          = input_bucket_location + input_bam_index,
+
                 ref_fasta                 = ref_fasta,
                 ref_fasta_dict            = ref_fasta_dict,
                 ref_fasta_index           = ref_fasta_index,
@@ -105,6 +110,10 @@ workflow ToolComparisonWdl {
                 boot_disk_size_gb         = boot_disk_size_gb
         }
 
+        # ================================================================================================
+        # Run the metrics on tool output and the evaluation of the metrics between this run and
+        # the "truth"/baseline data:
+        # -------------------------------------------------
 
         call analysis_1_wdl.GenotypeConcordanceTask {
             input:
@@ -157,8 +166,8 @@ workflow ToolComparisonWdl {
     # ------------------------------------------------
     # Outputs:
     output {
-        Array[File] vcf_out     = HaplotypeCallerTask.output_vcf
-        Array[File] vcf_out_idx = HaplotypeCallerTask.output_vcf_index
+        Array[File] vcf_out                                 = HaplotypeCallerTask.output_vcf
+        Array[File] vcf_out_idx                             = HaplotypeCallerTask.output_vcf_index
 
         Array[File] genotypeConcordance_summary_metrics     = GenotypeConcordanceTask.summary_metrics
         Array[File] genotypeConcordance_detail_metrics      = GenotypeConcordanceTask.detail_metrics
@@ -175,6 +184,6 @@ workflow ToolComparisonWdl {
         Array[File] variantCallerConcordance_summary         = Concordance.summary
         Array[File] variantCallerConcordance_filter_analysis = Concordance.filter_analysis
 
-        Array[File] timingMetrics  = CompareTimingTask.timing_diff
+        Array[File] timingMetrics                            = CompareTimingTask.timing_diff
     }
 }
