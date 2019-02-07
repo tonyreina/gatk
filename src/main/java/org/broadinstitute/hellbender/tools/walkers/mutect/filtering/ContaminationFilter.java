@@ -49,7 +49,10 @@ public class ContaminationFilter extends Mutect2VariantFilter {
                     GATKVCFConstants.POPULATION_AF_VCF_ATTRIBUTE, () -> new double[]{Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY}, Double.POSITIVE_INFINITY);
             final double alleleFrequency = MathUtils.applyToArray(negativeLog10AlleleFrequencies, x -> Math.pow(10,-x))[maxFractionIndex];
 
-            final double log10SomaticLikelihood = Math.log10(1.0 / (depth + 1));
+            final double log10SomaticLikelihood = filteringEngine.getSomaticClusteringModel().log10LikelihoodGivenSomatic(depth, altCount);
+
+
+                    //Math.log10(1.0 / (depth + 1));
 
             final double singleContaminantLikelihood = 2 * alleleFrequency * (1 - alleleFrequency) * MathUtils.binomialProbability(depth, altCount, contamination /2)
                     + MathUtils.square(alleleFrequency) * MathUtils.binomialProbability(depth, altCount, contamination);

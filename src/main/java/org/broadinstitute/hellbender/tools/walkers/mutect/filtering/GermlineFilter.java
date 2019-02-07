@@ -53,7 +53,7 @@ public class GermlineFilter extends Mutect2VariantFilter {
         final double altAlleleFraction = filteringEngine.weightedAverageOfTumorAFs(vc)[maxLodIndex];
 
         final double maf = computeMinorAlleleFraction(vc, filteringEngine, alleleCounts);
-        
+
         // sum of alt minor and alt major possibilities
         final double log10GermlineLikelihood = MathUtils.LOG10_ONE_HALF + MathUtils.log10SumLog10(
                 MathUtils.log10BinomialProbability(totalCount, altCount, Math.log10(maf)),
