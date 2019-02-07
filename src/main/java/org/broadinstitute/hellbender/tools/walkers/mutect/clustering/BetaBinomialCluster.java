@@ -3,6 +3,8 @@ package org.broadinstitute.hellbender.tools.walkers.mutect.clustering;
 import org.apache.commons.math3.special.Gamma;
 import org.broadinstitute.hellbender.tools.walkers.mutect.SomaticLikelihoodsEngine;
 import org.broadinstitute.hellbender.tools.walkers.readorientation.BetaDistributionShape;
+import org.broadinstitute.hellbender.tools.walkers.validation.basicshortmutpileup.BetaBinomialDistribution;
+import org.broadinstitute.hellbender.utils.MathUtils;
 
 import java.util.List;
 
@@ -21,6 +23,11 @@ public class BetaBinomialCluster implements AlleleFractionCluster {
     @Override
     public double log10Likelihood(final Datum datum) {
         return log10Likelihood(datum, betaDistributionShape);
+    }
+
+    @Override
+    public double log10Likelihood(final int totalCount, final int altCount) {
+        return MathUtils.LOG10_OF_E * new BetaBinomialDistribution(null, betaDistributionShape.getAlpha(), betaDistributionShape.getBeta(), totalCount).logProbability(altCount);
     }
 
     public static double log10Likelihood(final Datum datum, final BetaDistributionShape betaDistributionShape) {

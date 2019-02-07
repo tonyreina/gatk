@@ -1,6 +1,7 @@
 package org.broadinstitute.hellbender.tools.walkers.mutect.clustering;
 
 import org.broadinstitute.hellbender.tools.walkers.readorientation.BetaDistributionShape;
+import org.broadinstitute.hellbender.tools.walkers.validation.basicshortmutpileup.BetaBinomialDistribution;
 import org.broadinstitute.hellbender.utils.MathUtils;
 
 import java.util.List;
@@ -18,6 +19,11 @@ public class BinomialCluster implements AlleleFractionCluster {
     @Override
     public double log10Likelihood(final Datum datum) {
         return BetaBinomialCluster.log10Likelihood(datum, betaDistributionShape);
+    }
+
+    @Override
+    public double log10Likelihood(final int totalCount, final int altCount) {
+        return MathUtils.LOG10_OF_E * new BetaBinomialDistribution(null, betaDistributionShape.getAlpha(), betaDistributionShape.getBeta(), totalCount).logProbability(altCount);
     }
 
     @Override

@@ -159,6 +159,23 @@ public class SomaticClusteringModel {
                 .collect(Collectors.toList());
     }
 
+    // emission likelihood of given alt count given that a variant is somatic
+    public double log10LikelihoodGivenSomatic(final int totalCount, final int altCount) {
+        final double[] log10ClusterLikelihoods = IntStream.range(0, clusters.size())
+                .filter(c -> c != SEQUENCING_ERROR_INDEX)
+                .mapToDouble(c -> {
+                    final double log10Likelihood = clusters.get(c).log10Likelihood(totalCount, altCount);
+                    if (c == HIGH_AF_INDEX) {
+                        return log10HighAFWeight + log10Likelihood;
+                    } else if (c == BACKGROUND_INDEX) {
+                        return log10BackgroundWeight + log10Likelihood;
+                    } else {   // sparse cluster
+                        return log10SparseClustersWeight + log10CRPWeight(c) + log10Likelihood;
+                    }
+                }).toArray();
+        return MathUtils.log10SumLog10(log10ClusterLikelihoods);
+    }
+
     private double[] clusterProbabilities(final Datum datum) {
         final double log10VariantPrior = datum.getType() == VariantContext.Type.SNP ? (MathUtils.LOG10_ONE_THIRD + log10SNVPrior) : log10IndelPrior;
 

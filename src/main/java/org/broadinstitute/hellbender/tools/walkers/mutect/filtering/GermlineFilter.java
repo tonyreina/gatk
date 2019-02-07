@@ -47,22 +47,19 @@ public class GermlineFilter extends Mutect2VariantFilter {
 
         // note that this includes the ref
         final int[] alleleCounts = filteringEngine.sumADsOverSamples(vc, true, false);
+        final int totalCount = (int) MathUtils.sum(alleleCounts);
         final int refCount = alleleCounts[0];
         final int altCount = alleleCounts[maxLodIndex + 1];
         final double altAlleleFraction = filteringEngine.weightedAverageOfTumorAFs(vc)[maxLodIndex];
 
         final double maf = computeMinorAlleleFraction(vc, filteringEngine, alleleCounts);
-
-
+        
         // sum of alt minor and alt major possibilities
         final double log10GermlineLikelihood = MathUtils.LOG10_ONE_HALF + MathUtils.log10SumLog10(
-                refCount * Math.log10(1 - maf) + altCount * Math.log10(maf), refCount * Math.log10(maf) + altCount * Math.log10(1 - maf));
+                MathUtils.log10BinomialProbability(totalCount, altCount, Math.log10(maf)),
+                MathUtils.log10BinomialProbability(totalCount, altCount, Math.log10(1 - maf)));
 
-        // TODO: this is overfit to the empirical allele fraction and therefore is biased toward somatic since the
-        // TODO: germline likelihood is *not* overfit but i rather pegged to the maf
-        // TODO: instead use the adjusted likelihood from filteringEngine.getSomaticClusteringModel()
-        final double log10SomaticLikelihood = refCount * Math.log10(1 - altAlleleFraction) + altCount * Math.log10(altAlleleFraction);
-
+        final double log10SomaticLikelihood = filteringEngine.getSomaticClusteringModel().log10LikelihoodGivenSomatic(totalCount, altCount);
         // this is \chi in the docs, the correction factor for tumor likelihoods if forced to have maf or 1 - maf
         // as the allele fraction
         final double log10OddsOfGermlineHetVsSomatic = log10GermlineLikelihood - log10SomaticLikelihood;
