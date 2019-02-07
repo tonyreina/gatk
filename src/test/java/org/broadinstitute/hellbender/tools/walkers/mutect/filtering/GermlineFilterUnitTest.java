@@ -4,17 +4,15 @@ import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
-import static org.testng.Assert.*;
-
 public class GermlineFilterUnitTest {
 
     @Test(dataProvider = "log10ProbabilityData")
-    public void testLog10PosteriorProbabilityOfGermlineVariant(final double normalLog10Odds, final double log10OddsOfGermlineHetVsSomatic,
-                                                               final double log10OddsOfGermlineHomAltVsSomatic,
-                                                               final double populationAF, final double log10SomaticPrior,
-                                                               final double expectedLog10Posterior, final double tolerance) {
-        final double actual = GermlineFilter.log10PosteriorProbabilityOfGermlineVariant(normalLog10Odds, log10OddsOfGermlineHetVsSomatic,
-                log10OddsOfGermlineHomAltVsSomatic, populationAF, log10SomaticPrior);
+    public void testGermlineProbability(final double normalLog10Odds, final double log10OddsOfGermlineHetVsSomatic,
+                                        final double log10OddsOfGermlineHomAltVsSomatic,
+                                        final double populationAF, final double log10SomaticPrior,
+                                        final double expectedLog10Posterior, final double tolerance) {
+        final double actual = Math.log10(GermlineFilter.germlineProbability(normalLog10Odds, log10OddsOfGermlineHetVsSomatic,
+                log10OddsOfGermlineHomAltVsSomatic, populationAF, log10SomaticPrior));
         Assert.assertEquals(actual, expectedLog10Posterior, tolerance);
     }
 
