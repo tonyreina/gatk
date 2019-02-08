@@ -1,32 +1,21 @@
 #  Create a Mutect2 panel of normals
 #
 #  Description of inputs
-#  gatk: java jar file containing gatk 4
 #  intervals: genomic intervals
 #  ref_fasta, ref_fai, ref_dict: reference genome, index, and dictionary
-#  normal_bams, normal_bais: arrays of normal bams and bam indices
+#  normal_bams: arrays of normal bams
 #  scatter_count: number of parallel jobs when scattering over intervals
 #  pon_name: the resulting panel of normals is {pon_name}.vcf
-#  duplicate_sample_strategy: THROW_ERROR (default if left empty) to fail if mulitple bams have the same sample name,
-#                               CHOOSE_FIRST to use only the first bam with a given sample name, ALLOW_ALL to use all bams
-#
-# This WDL needs to decide whether to use the ``gatk_jar`` or ``gatk_jar_override`` for the jar location.  As of cromwell-0.24,
-#   this logic *must* go into each task.  Therefore, there is a lot of duplicated code.  This allows users to specify a jar file
-#   independent of what is in the docker file.  See the README.md for more info.
-#
-import "mutect2.wdl" as m2
 
+import "mutect2_nio.wdl" as Mutect2
 workflow Mutect2_Panel {
     # inputs
 	File? intervals
-	File ref_fasta
-	File ref_fai
-	File ref_dict
+	String ref_fasta
 	Int scatter_count
 	Array[File] normal_bams
-	Array[File] normal_bais
     String? m2_extra_args
-    String? duplicate_sample_strategy
+    String? create_pon_extra_args
     String pon_name
 
     File? gatk_override
@@ -35,36 +24,31 @@ workflow Mutect2_Panel {
     String gatk_docker
     Int? preemptible_attempts
     Int? max_retries
+    Int? mem
 
-    Array[Pair[File,File]] normal_bam_pairs = zip(normal_bams, normal_bais)
+    Array[String] normal_bams
 
-    scatter (normal_bam_pair in normal_bam_pairs) {
-        File normal_bam = normal_bam_pair.left
-        File normal_bai = normal_bam_pair.right
-
-        call m2.Mutect2 {
+    scatter (normal_bam in normal_bams) {
+        call Mutect2.M2 {
             input:
                 intervals = intervals,
                 ref_fasta = ref_fasta,
-                ref_fai = ref_fai,
-                ref_dict = ref_dict,
                 tumor_bam = normal_bam,
-                tumor_bai = normal_bai,
                 scatter_count = scatter_count,
                 m2_extra_args = m2_extra_args,
                 gatk_override = gatk_override,
                 gatk_docker = gatk_docker,
                 preemptible_attempts = preemptible_attempts,
-                max_retries = max_retries
+                max_retries = max_retries,
+                mem = mem
         }
     }
 
     call CreatePanel {
         input:
-            input_vcfs = Mutect2.filtered_vcf,
-            input_vcfs_idx = Mutect2.filtered_vcf_index,
-            duplicate_sample_strategy = duplicate_sample_strategy,
+            input_vcfs = M2.unfiltered_vcf,
             output_vcf_name = pon_name,
+            create_pon_extra_args = create_pon_extra_args,
             gatk_override = gatk_override,
             preemptible_attempts = preemptible_attempts,
             max_retries = max_retries,
@@ -74,17 +58,17 @@ workflow Mutect2_Panel {
     output {
         File pon = CreatePanel.output_vcf
         File pon_idx = CreatePanel.output_vcf_index
-        Array[File] normal_calls = Mutect2.filtered_vcf
-        Array[File] normal_calls_idx = Mutect2.filtered_vcf_index
+        Array[File] normal_calls = M2.unfiltered_vcf
+        Array[File] normal_calls_idx = M2.unfiltered_vcf_index
     }
 }
 
+
 task CreatePanel {
     # inputs
-    Array[File] input_vcfs
-    Array[File] input_vcfs_idx
-    String? duplicate_sample_strategy
+    Array[String] input_vcfs
     String output_vcf_name
+    String? create_pon_extra_args
 
     File? gatk_override
 
@@ -94,26 +78,27 @@ task CreatePanel {
     Int? preemptible_attempts
     Int? max_retries
     Int? disk_space
-    Int? cpu
-    Boolean use_ssd = false
 
-    Int machine_mem = select_first([mem, 3])
+    Int machine_mem = select_first([mem, 8])
     Int command_mem = machine_mem - 1
 
     command {
         set -e
         export GATK_LOCAL_JAR=${default="/root/gatk.jar" gatk_override}
-        gatk --java-options "-Xmx${command_mem}g"  CreateSomaticPanelOfNormals -vcfs ${sep=' -vcfs ' input_vcfs} ${"-duplicate-sample-strategy " + duplicate_sample_strategy} -O ${output_vcf_name}.vcf
+
+        gatk GenomicsDBImport --genomicsdb-workspace-path pon_db -V ${sep=' -V ' input_vcfs}
+
+        gatk --java-options "-Xmx${command_mem}g"  CreateSomaticPanelOfNormals \
+            -V gendb:///pon_db -O ${output_vcf_name}.vcf ${create_pon_extra_args}
     }
 
     runtime {
         docker: gatk_docker
         bootDiskSizeGb: 12
         memory: machine_mem + " GB"
-        disks: "local-disk " + select_first([disk_space, 100]) + if use_ssd then " SSD" else " HDD"
+        disks: "local-disk " + select_first([disk_space, 100]) + " HDD"
         preemptible: select_first([preemptible_attempts, 3])
         maxRetries: select_first([max_retries, 0])
-        cpu: select_first([cpu, 1])
     }
 
     output {

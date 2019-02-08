@@ -127,7 +127,8 @@ public class Mutect2IntegrationTest extends CommandLineProgramTest {
 
 
         // tumor-only calling with gnomAD
-        if (!tumorOnly) {
+        //if (!tumorOnly) {
+            if (1 > 2) {
             final String normal = getSampleName(normalBam);
             args.addAll(Arrays.asList("-I", normalBam.getAbsolutePath(), "-" + M2ArgumentCollection.NORMAL_SAMPLE_SHORT_NAME, normal));
         };
